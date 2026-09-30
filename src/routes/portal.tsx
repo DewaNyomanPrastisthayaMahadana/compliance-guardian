@@ -27,7 +27,7 @@ export const Route = createFileRoute("/portal")({
   component: PortalPage,
 });
 
-const tiket = violations[0];
+const tiket = violations[0]!;
 
 function PortalPage() {
   return (

@@ -45,7 +45,7 @@ function matches(v: Violation, filter: (typeof filters)[number]) {
 function PelanggaranPage() {
   const [filter, setFilter] = useState<(typeof filters)[number]>("Semua");
   const [q, setQ] = useState("");
-  const [selectedId, setSelectedId] = useState(violations[0].id);
+  const [selectedId, setSelectedId] = useState(violations[0]!.id);
 
   const list = useMemo(
     () =>
