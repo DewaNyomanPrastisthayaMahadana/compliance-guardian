@@ -10,11 +10,24 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LaporRouteImport } from './routes/lapor'
+import { Route as MitraRouteImport } from './routes/mitra'
 import { Route as PelanggaranRouteImport } from './routes/pelanggaran'
+import { Route as PortalRouteImport } from './routes/portal'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaporRoute = LaporRouteImport.update({
+  id: '/lapor',
+  path: '/lapor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MitraRoute = MitraRouteImport.update({
+  id: '/mitra',
+  path: '/mitra',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PelanggaranRoute = PelanggaranRouteImport.update({
@@ -22,31 +35,48 @@ const PelanggaranRoute = PelanggaranRouteImport.update({
   path: '/pelanggaran',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalRoute = PortalRouteImport.update({
+  id: '/portal',
+  path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/lapor': typeof LaporRoute
+  '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
+  '/portal': typeof PortalRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/lapor': typeof LaporRoute
+  '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
+  '/portal': typeof PortalRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/lapor': typeof LaporRoute
+  '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
+  '/portal': typeof PortalRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/pelanggaran'
+  fullPaths: '/' | '/lapor' | '/mitra' | '/pelanggaran' | '/portal'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/pelanggaran'
-  id: '__root__' | '/' | '/pelanggaran'
+  to: '/' | '/lapor' | '/mitra' | '/pelanggaran' | '/portal'
+  id: '__root__' | '/' | '/lapor' | '/mitra' | '/pelanggaran' | '/portal'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LaporRoute: typeof LaporRoute
+  MitraRoute: typeof MitraRoute
   PelanggaranRoute: typeof PelanggaranRoute
+  PortalRoute: typeof PortalRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +88,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lapor': {
+      id: '/lapor'
+      path: '/lapor'
+      fullPath: '/lapor'
+      preLoaderRoute: typeof LaporRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mitra': {
+      id: '/mitra'
+      path: '/mitra'
+      fullPath: '/mitra'
+      preLoaderRoute: typeof MitraRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pelanggaran': {
       id: '/pelanggaran'
       path: '/pelanggaran'
@@ -65,12 +109,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PelanggaranRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portal': {
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LaporRoute: LaporRoute,
+  MitraRoute: MitraRoute,
   PelanggaranRoute: PelanggaranRoute,
+  PortalRoute: PortalRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
