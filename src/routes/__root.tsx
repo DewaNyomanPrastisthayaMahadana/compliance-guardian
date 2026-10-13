@@ -35,7 +35,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -82,10 +82,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Sistem pemantauan kepatuhan mitra dan petugas lapangan Divisi Material dan Jasa PT PLN Icon Plus.",
+          "Sistem pemantauan kepatuhan mitra Divisi Material dan Jasa PT PLN Icon Plus.",
       },
       { name: "author", content: "PT PLN Icon Plus" },
-      { property: "og:title", content: "IconGuard — Mitra & Material Compliance System" },
+      { property: "og:title"
+        , content: "IconGuard — Mitra & Material Compliance System" },
       {
         property: "og:description",
         content: "Pencatatan pelanggaran, reminder otomatis, dan scorecard kepatuhan mitra.",
@@ -99,7 +100,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/logo_pln.png", type: "image/png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

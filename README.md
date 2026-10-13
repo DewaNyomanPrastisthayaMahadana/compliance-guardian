@@ -118,3 +118,15 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Authentication and Cloudflare D1
+
+Authentication uses Better Auth with email/password and Cloudflare D1. Public sign-up is disabled. The first Super Admin is created once from `/login` using `SUPER_ADMIN_SETUP_TOKEN`; afterward, that Super Admin creates Admin, Mitra, and Petugas Mitra accounts. Roles are stored in the D1 `user.appRole` field and checked on the server. Passwords must contain at least 12 characters.
+
+For local development, copy `.dev.vars.example` to `.dev.vars`, then set `BETTER_AUTH_SECRET` and `SUPER_ADMIN_SETUP_TOKEN` to random values of at least 32 characters. Generate them with `openssl rand -base64 32` and `openssl rand -hex 32`. Keep `.dev.vars` private; it is ignored by Git.
+
+The project uses the D1 binding named `DB` in `wrangler.jsonc`. Apply the existing D1 migrations locally with `npx wrangler d1 migrations apply iconguard --local`, then run `npm run dev:database`. This builds the Cloudflare Worker and starts it with Wrangler at `http://localhost:8080`.
+
+For a Cloudflare deployment, create or select the D1 database named `iconguard`, replace the placeholder `database_id` in `wrangler.jsonc` with its real ID, and apply migrations with `npx wrangler d1 migrations apply iconguard --remote`. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, and `SUPER_ADMIN_SETUP_TOKEN` as Worker secrets/variables. On first login, use the setup token to create the Super Admin; remove the token after bootstrap.
+
+`drizzle/migrations/0001`–`0003` are the SQLite/D1 migrations. The PostgreSQL-only migration is kept separately under `drizzle/migrations-postgres/` and must not be applied to D1.

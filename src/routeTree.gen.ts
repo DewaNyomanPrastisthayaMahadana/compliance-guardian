@@ -11,9 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LaporRouteImport } from './routes/lapor'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MitraRouteImport } from './routes/mitra'
 import { Route as PelanggaranRouteImport } from './routes/pelanggaran'
+import { Route as PenggunaRouteImport } from './routes/pengguna'
 import { Route as PortalRouteImport } from './routes/portal'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,6 +26,11 @@ const IndexRoute = IndexRouteImport.update({
 const LaporRoute = LaporRouteImport.update({
   id: '/lapor',
   path: '/lapor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MitraRoute = MitraRouteImport.update({
@@ -35,48 +43,95 @@ const PelanggaranRoute = PelanggaranRouteImport.update({
   path: '/pelanggaran',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PenggunaRoute = PenggunaRouteImport.update({
+  id: '/pengguna',
+  path: '/pengguna',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalRoute = PortalRouteImport.update({
   id: '/portal',
   path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/lapor': typeof LaporRoute
+  '/login': typeof LoginRoute
   '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
+  '/pengguna': typeof PenggunaRoute
   '/portal': typeof PortalRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/lapor': typeof LaporRoute
+  '/login': typeof LoginRoute
   '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
+  '/pengguna': typeof PenggunaRoute
   '/portal': typeof PortalRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/lapor': typeof LaporRoute
+  '/login': typeof LoginRoute
   '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
+  '/pengguna': typeof PenggunaRoute
   '/portal': typeof PortalRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/lapor' | '/mitra' | '/pelanggaran' | '/portal'
+  fullPaths:
+    | '/'
+    | '/lapor'
+    | '/login'
+    | '/mitra'
+    | '/pelanggaran'
+    | '/pengguna'
+    | '/portal'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/lapor' | '/mitra' | '/pelanggaran' | '/portal'
-  id: '__root__' | '/' | '/lapor' | '/mitra' | '/pelanggaran' | '/portal'
+  to:
+    | '/'
+    | '/lapor'
+    | '/login'
+    | '/mitra'
+    | '/pelanggaran'
+    | '/pengguna'
+    | '/portal'
+    | '/api/auth/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/lapor'
+    | '/login'
+    | '/mitra'
+    | '/pelanggaran'
+    | '/pengguna'
+    | '/portal'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LaporRoute: typeof LaporRoute
+  LoginRoute: typeof LoginRoute
   MitraRoute: typeof MitraRoute
   PelanggaranRoute: typeof PelanggaranRoute
+  PenggunaRoute: typeof PenggunaRoute
   PortalRoute: typeof PortalRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -95,6 +150,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LaporRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mitra': {
       id: '/mitra'
       path: '/mitra'
@@ -109,11 +171,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PelanggaranRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pengguna': {
+      id: '/pengguna'
+      path: '/pengguna'
+      fullPath: '/pengguna'
+      preLoaderRoute: typeof PenggunaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal': {
       id: '/portal'
       path: '/portal'
       fullPath: '/portal'
       preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -122,9 +198,12 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LaporRoute: LaporRoute,
+  LoginRoute: LoginRoute,
   MitraRoute: MitraRoute,
   PelanggaranRoute: PelanggaranRoute,
+  PenggunaRoute: PenggunaRoute,
   PortalRoute: PortalRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

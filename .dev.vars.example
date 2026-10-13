@@ -1,0 +1,6 @@
+BETTER_AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters
+BETTER_AUTH_URL=http://localhost:8080
+SUPER_ADMIN_SETUP_TOKEN=replace-with-a-random-one-time-token-at-least-32-characters
+RESEND_API_KEY=re_your_resend_api_key
+SUPER_ADMIN_EMAIL_FROM="IconGuard <onboarding@resend.dev>"
+OFFICE_EMAIL_DOMAIN=gmail.com

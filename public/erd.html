@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entity Relationship Diagram (ERD) - IconGuard QC Material & Jasa</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 30px 20px; line-height: 1.6; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+    h1 { font-size: 24px; font-weight: 700; color: #38bdf8; }
+    p.subtitle { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+    .action-buttons { display: flex; gap: 10px; }
+    .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { background: var(--primary-dark); }
+    .btn-secondary { background: #334155; }
+    .btn-secondary:hover { background: #475569; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); }
+    .card h2 { font-size: 18px; color: #f1f5f9; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .mermaid-wrapper { background: #0f172a; border-radius: 8px; padding: 20px; overflow-x: auto; text-align: center; border: 1px dashed var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: #0f172a; color: #38bdf8; font-weight: 600; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-pk { background: #f59e0b; color: #1e1e1e; }
+    .badge-nok { background: #ef4444; color: white; }
+    pre { background: #090d16; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 13px; color: #7dd3fc; border: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Database Entity Relationship Diagram (ERD)</h1>
+        <p class="subtitle">Modul QA/QC Material & Jasa - Pengolahan Data Excel & Pelanggaran</p>
+      </div>
+      <div class="action-buttons">
+        <button class="btn btn-secondary" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+        <button class="btn" onclick="downloadSVG()">📥 Unduh Diagram (SVG)</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2>📊 Entity Relationship Diagram (Mermaid)</h2>
+      <div class="mermaid-wrapper" id="diagram-container">
+        <pre class="mermaid">
+erDiagram
+    UPLOADS ||--o{ INSPECTIONS : "berisi"
+    INSPECTIONS ||--o{ INSPECTION_CHECKLISTS : "memiliki rincian"
+    INSPECTION_CHECKLISTS ||--o| VIOLATIONS : "dibuat jika NOK"
+
+    MITRA ||--o{ PETUGAS_MITRA : "menaungi"
+    MITRA ||--o{ INSPECTIONS : "pelaksana"
+    PETUGAS_MITRA ||--o{ INSPECTIONS : "teknisi"
+
+    UPLOADS {
+        string id PK
+        string file_name
+        int total_inspeksi
+        int total_nok
+        datetime uploaded_at
+        string uploaded_by
+    }
+
+    MITRA {
+        string id PK
+        string nama UK
+        int total_inspeksi
+        int total_pelanggaran
+        float compliance_rate
+    }
+
+    PETUGAS_MITRA {
+        string id PK
+        string mitra_id FK
+        string nama
+        int total_inspeksi
+        int total_pelanggaran
+    }
+
+    INSPECTIONS {
+        string id PK
+        string upload_id FK
+        string id_pa UK
+        string sbu
+        string kp
+        date tanggal_cek
+        date tanggal_aktivasi
+        date tanggal_permohonan
+        string nama_mitra
+        string petugas_mitra
+        string petugas_qc_sbu
+        string petugas_monitoring_pusat
+        int dw_gudang
+        int lokasi_fat_pelanggan
+        int selisih_dw
+        string status_qc_k3
+        string status_qc_instalasi
+        string status_keseluruhan
+    }
+
+    INSPECTION_CHECKLISTS {
+        string id PK
+        string inspection_id FK
+        string id_pa
+        string kategori
+        string item_nama
+        string status
+        string catatan_remark
+    }
+
+    VIOLATIONS {
+        string id PK
+        string inspection_id FK
+        string checklist_id FK
+        string id_pa
+        string sbu
+        string kp
+        date tanggal_cek
+        date tanggal_aktivasi
+        date tanggal_permohonan
+        string nama_mitra
+        string petugas_mitra
+        string petugas_qc_sbu
+        string petugas_monitoring_pusat
+        string jenis_pelanggaran
+        string kategori
+        string severity
+        string status_tindak_lanjut
+        int poin_penalti
+        string catatan
+    }
+        </pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#0f172a',
+        primaryColor: '#0284c7',
+        primaryTextColor: '#f8fafc',
+        primaryBorderColor: '#38bdf8',
+        lineColor: '#38bdf8'
+      }
+    });
+
+    function downloadSVG() {
+      const svgElement = document.querySelector("#diagram-container svg");
+      if (!svgElement) {
+        alert("Diagram sedang dimuat, silakan coba sesaat lagi.");
+        return;
+      }
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      const downloadLink = document.createElement("a");
+      downloadLink.href = svgUrl;
+      downloadLink.download = "ERD_Database_Material_Jasa_IconGuard.svg";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    }
+  </script>
+</body>
+</html>
+
