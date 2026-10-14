@@ -652,23 +652,25 @@ function Dashboard() {
         {kpis.map((kpi, index) => (
           <Card
             key={kpi.label}
-            className="dashboard-enter transition-all duration-200"
+            className="dashboard-enter relative overflow-hidden transition-all duration-200"
             style={{ animationDelay: `${index * 90 + 80}ms` }}
           >
-            <CardContent className="flex min-h-24 items-center gap-4 !py-4">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary">
+            {selectedSbuForKpi && (
+              <span className="absolute top-2.5 right-2.5 text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
+                {selectedSbuForKpi}
+              </span>
+            )}
+            <CardContent className="flex min-h-24 items-center gap-3.5 !p-4">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary shrink-0">
                 <kpi.icon className="size-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-1">
-                  <p className="text-sm text-muted-foreground truncate">{kpi.label}</p>
-                  {selectedSbuForKpi && (
-                    <span className="text-[10px] font-semibold text-primary uppercase tracking-wider shrink-0 bg-primary/10 px-1.5 py-0.5 rounded">
-                      {selectedSbuForKpi}
-                    </span>
-                  )}
-                </div>
-                <p className="text-2xl font-bold tracking-tight">{kpi.value}</p>
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground leading-snug">
+                  {kpi.label}
+                </p>
+                <p className="text-2xl font-bold tracking-tight text-foreground mt-0.5">
+                  {kpi.value}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -726,7 +728,7 @@ function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={activeChartData}
-                margin={{ left: -20, right: 8, top: 8 }}
+                margin={{ left: -16, right: 24, top: 8 }}
                 onClick={(state) => {
                   if (!state || !state.activePayload || state.activePayload.length === 0) return;
                   const payload = state.activePayload[0]?.payload;
@@ -848,7 +850,7 @@ function Dashboard() {
                   <YAxis
                     type="category"
                     dataKey="label"
-                    width={120}
+                    width={135}
                     stroke="var(--muted-foreground)"
                     fontSize={11}
                     tickLine={false}
