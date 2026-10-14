@@ -22,6 +22,7 @@ import {
   getCustomMitraListFromStorage,
   getDeletedViolationIds,
   hydrateCustomDataFromIndexedDB,
+  sbuOptions,
 } from "@/lib/iconguard-data";
 import { useEffect, useMemo, useState } from "react";
 
@@ -203,7 +204,11 @@ function MitraPage() {
                   <TableCell className="text-xs">{v.sbu ? `${v.sbu}${v.kp ? ` (${v.kp})` : ""}` : v.lokasi}</TableCell>
                   <TableCell className="font-medium">{v.mitra}</TableCell>
                   <TableCell>{v.petugas}</TableCell>
-                  <TableCell className="text-muted-foreground">{v.petugasQc || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {v.petugasQc && v.petugasQc !== v.sbu && !sbuOptions.some((s) => s.code === v.petugasQc)
+                      ? v.petugasQc
+                      : "—"}
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{v.idFat || "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{v.jenis}</TableCell>
                   <TableCell>{v.severity}</TableCell>

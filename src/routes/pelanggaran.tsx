@@ -38,6 +38,7 @@ import {
   violations,
   getCustomViolationsFromStorage,
   hydrateCustomDataFromIndexedDB,
+  sbuOptions,
   type Violation,
 } from "@/lib/iconguard-data";
 
@@ -423,7 +424,7 @@ function PelanggaranPage() {
               <p className="mt-2 font-semibold">{v.jenis}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 <span className="font-medium text-foreground">{v.mitra}</span> · Petugas Mitra: {v.petugas}
-                {v.petugasQc ? ` · QC SBU: ${v.petugasQc}` : ""}
+                {v.petugasQc && v.petugasQc !== v.sbu && !sbuOptions.some((s) => s.code === v.petugasQc) ? ` · QC SBU: ${v.petugasQc}` : ""}
               </p>
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <MapPin className="size-3" /> {v.lokasi} · deadline {v.deadline}
@@ -493,7 +494,16 @@ function PelanggaranPage() {
               <Detail label="SBU Operasional" value={selected.sbu ?? selected.lokasi} />
               <Detail label="Nama Mitra" value={selected.mitra} />
               <Detail label="Petugas Mitra" value={selected.petugas} />
-              <Detail label="Petugas QC SBU" value={selected.petugasQc || "Belum dicatat"} />
+              <Detail
+                label="Petugas QC SBU"
+                value={
+                  selected.petugasQc &&
+                  selected.petugasQc !== selected.sbu &&
+                  !sbuOptions.some((s) => s.code === selected.petugasQc)
+                    ? selected.petugasQc
+                    : "Belum dicatat"
+                }
+              />
               {selected.petugasMonitoringPusat && (
                 <Detail label="Petugas Monitoring Pusat" value={selected.petugasMonitoringPusat} />
               )}

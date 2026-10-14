@@ -4,6 +4,7 @@ import {
   mitraList,
   poinBySeverity,
   saveCustomDataToIndexedDB,
+  sbuOptions,
   type Violation,
   type Severity,
 } from "./iconguard-data";
@@ -264,46 +265,175 @@ export function parseExcelHeadersAndPreview(file: File): Promise<ParsedWorkbookR
 export function detectAutoMapping(headers: string[]): ColumnMapping {
   const mapping: ColumnMapping = {};
 
-  const findHeader = (keywords: string[]) => {
-    const cleanedKeywords = keywords.map((k) => k.toLowerCase().replace(/[^a-z0-9]/g, ""));
-    return headers.find((h) => {
-      const lower = h.toLowerCase().replace(/[^a-z0-9]/g, "");
-      return cleanedKeywords.some((k) => lower === k || lower.includes(k) || k.includes(lower));
-    });
-  };
+  const cleanStr = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  mapping.tanggalCek = findHeader([
-    "tanggalcek", "tglcek", "tglinspeksi", "tglperiksa", "tanggalperiksa", "tanggalinspeksi", "tanggal", "tgl"
-  ]);
-  mapping.sbu = findHeader(["sbu", "wilayah", "area", "region"]);
-  mapping.idPa = findHeader(["idpa", "nopa", "pa", "project", "spk", "noorder", "order"]);
-  mapping.tanggalAktivasi = findHeader([
-    "tanggalaktivasi", "tglaktivasi", "tglaktif", "tglaktv", "aktivasi", "tglon"
-  ]);
-  mapping.tanggalPermohonan = findHeader([
-    "tanggalpermohonan", "tglpermohonan", "tglmohon", "permohonan"
-  ]);
-  mapping.mitra = findHeader(["namamitra", "mitra", "vendor", "perusahaan", "rekanan", "pt", "cv"]);
-  mapping.petugas = findHeader([
-    "petugasmitra", "teknisi", "petugaslapangan", "namapekerja", "namapetugas", "petugas"
-  ]);
-  mapping.petugasQc = findHeader([
-    "petugasqcsbu", "petugasqc", "qcsbu", "qc", "waslak", "pengawas"
-  ]);
-  mapping.petugasMonitoringPusat = findHeader([
-    "petugasmonitoringpusat", "monitoringpusat", "petugasmonitoring", "monitoring", "pusat"
-  ]);
-  mapping.kp = findHeader(["kp", "kantorperwakilan"]);
-  mapping.idFat = findHeader(["idfat", "fat"]);
-  mapping.dwGudang = findHeader(["dwgudang", "dw", "gudang"]);
-  mapping.lokasiFatPelanggan = findHeader([
-    "lokasifatpelanggan", "lokasifat", "fatpelanggan", "lokasipelanggan", "jarakfat"
-  ]);
+  function findBestHeader(
+    primaryKeywords: string[],
+    fallbackKeywords: string[] = [],
+    exactExcludes: string[] = [],
+    containsExcludes: string[] = [],
+  ): string | undefined {
+    const cleanHeaders = headers.map((h) => ({ original: h, clean: cleanStr(h) }));
+    const cleanPrimary = primaryKeywords.map(cleanStr).filter(Boolean);
+    const cleanFallback = fallbackKeywords.map(cleanStr).filter(Boolean);
+    const cleanExactExcludes = exactExcludes.map(cleanStr).filter(Boolean);
+    const cleanContainsExcludes = containsExcludes.map(cleanStr).filter(Boolean);
 
-  mapping.jenis = findHeader(["jenistemuan", "jenispelanggaran", "temuan", "pelanggaran", "jenis"]);
-  mapping.severity = findHeader(["severity", "tingkat", "kategori", "bobot"]);
-  mapping.status = findHeader(["status", "tindaklanjut"]);
-  mapping.catatan = findHeader(["catatan", "keterangan", "deskripsi", "notes"]);
+    const isExcluded = (hClean: string) => {
+      if (cleanExactExcludes.some((ex) => hClean === ex)) return true;
+      if (cleanContainsExcludes.some((ex) => ex.length >= 3 && hClean.includes(ex))) return true;
+      return false;
+    };
+
+    // Phase 1: Exact match with primary keywords (highest priority)
+    for (const kw of cleanPrimary) {
+      const found = cleanHeaders.find((h) => !isExcluded(h.clean) && h.clean === kw);
+      if (found) return found.original;
+    }
+
+    // Phase 2: Exact match with fallback keywords
+    for (const kw of cleanFallback) {
+      const found = cleanHeaders.find((h) => !isExcluded(h.clean) && h.clean === kw);
+      if (found) return found.original;
+    }
+
+    // Phase 3: Header contains primary keyword (longest keyword first)
+    const sortedPrimary = [...cleanPrimary].sort((a, b) => b.length - a.length);
+    for (const kw of sortedPrimary) {
+      if (kw.length < 3) continue;
+      const found = cleanHeaders.find((h) => !isExcluded(h.clean) && h.clean.includes(kw));
+      if (found) return found.original;
+    }
+
+    // Phase 4: Header contains fallback keyword (longest keyword first)
+    const sortedFallback = [...cleanFallback].sort((a, b) => b.length - a.length);
+    for (const kw of sortedFallback) {
+      if (kw.length < 3) continue;
+      const found = cleanHeaders.find((h) => !isExcluded(h.clean) && h.clean.includes(kw));
+      if (found) return found.original;
+    }
+
+    return undefined;
+  }
+
+  mapping.tanggalCek = findBestHeader(
+    ["tanggalcek", "tglcek", "tglinspeksi", "tglperiksa", "tanggalperiksa", "tanggalinspeksi"],
+    ["tanggal", "tgl"],
+    [],
+    ["aktivasi", "permohonan"]
+  );
+
+  mapping.sbu = findBestHeader(
+    ["sbu"],
+    ["wilayah", "area", "region"],
+    [],
+    ["petugas", "qc", "waslak", "monitoring", "mitra", "pengawas"]
+  );
+
+  mapping.idPa = findBestHeader(
+    ["idpa", "nopa"],
+    ["pa", "project", "spk", "noorder", "order"],
+    [],
+    ["fat", "pelanggan"]
+  );
+
+  mapping.tanggalAktivasi = findBestHeader(
+    ["tanggalaktivasi", "tglaktivasi", "tglaktif", "tglaktv", "aktivasi"],
+    ["tglon"],
+    [],
+    ["permohonan", "cek", "inspeksi"]
+  );
+
+  mapping.tanggalPermohonan = findBestHeader(
+    ["tanggalpermohonan", "tglpermohonan", "tglmohon", "permohonan"],
+    [],
+    [],
+    ["aktivasi", "cek", "inspeksi"]
+  );
+
+  mapping.mitra = findBestHeader(
+    ["namamitra", "mitra"],
+    ["vendor", "perusahaan", "rekanan", "pt", "cv"],
+    [],
+    ["petugas"]
+  );
+
+  mapping.petugas = findBestHeader(
+    ["petugasmitra", "namapetugasmitra", "teknisi", "petugaslapangan", "namapekerja"],
+    ["petugas", "namapetugas"],
+    [],
+    ["qc", "monitoring", "pusat", "waslak"]
+  );
+
+  mapping.petugasQc = findBestHeader(
+    ["petugasqcsbu", "namapetugasqcsbu", "petugasqc", "namapetugasqc", "qcsbu"],
+    ["waslak", "pengawas", "pemeriksasbu", "waslaksbu"],
+    ["sbu"], // Never map to column that is purely SBU!
+    ["mitra", "monitoring", "pusat"]
+  );
+
+  mapping.petugasMonitoringPusat = findBestHeader(
+    ["petugasmonitoringpusat", "monitoringpusat", "petugasmonitoring", "monitoring"],
+    ["pusat"],
+    [],
+    ["mitra", "qc"]
+  );
+
+  mapping.kp = findBestHeader(
+    ["kp", "kantorperwakilan"],
+    [],
+    [],
+    []
+  );
+
+  mapping.idFat = findBestHeader(
+    ["idfat"],
+    ["fat"],
+    [],
+    ["pelanggan", "lokasi"]
+  );
+
+  mapping.dwGudang = findBestHeader(
+    ["dwgudang"],
+    ["dw", "gudang", "do"],
+    [],
+    []
+  );
+
+  mapping.lokasiFatPelanggan = findBestHeader(
+    ["lokasifatpelanggan", "fatpelanggan", "lokasifat"],
+    ["jarakfat", "pelanggan"],
+    [],
+    ["permohonan"]
+  );
+
+  mapping.jenis = findBestHeader(
+    ["jenistemuan", "jenispelanggaran"],
+    ["temuan", "pelanggaran", "jenis"],
+    [],
+    []
+  );
+
+  mapping.severity = findBestHeader(
+    ["severity", "tingkatkeparahan"],
+    ["tingkat", "kategori", "bobot"],
+    [],
+    []
+  );
+
+  mapping.status = findBestHeader(
+    ["status", "tindaklanjut"],
+    [],
+    [],
+    []
+  );
+
+  mapping.catatan = findBestHeader(
+    ["catatan", "keterangan"],
+    ["deskripsi", "notes", "remark"],
+    [],
+    []
+  );
 
   return mapping;
 }
@@ -410,33 +540,95 @@ export function processAndImportData(
     if (!rawMitra && !rawIdPa) return;
 
     const displayMitra = rawMitra || "Mitra Operasional";
-    const rawPetugas = String(
-      (mapping.petugas && row[mapping.petugas]) ||
-      row["Petugas Mitra"] ||
-      row["Petugas"] ||
-      "Petugas Mitra"
-    ).trim();
-
-    const rawPetugasQc =
-      mapping.petugasQc && row[mapping.petugasQc]
-        ? String(row[mapping.petugasQc]).trim()
-        : row["Petugas QC SBU"]
-        ? String(row["Petugas QC SBU"]).trim()
-        : undefined;
-
-    const rawMonitoringPusat =
-      mapping.petugasMonitoringPusat && row[mapping.petugasMonitoringPusat]
-        ? String(row[mapping.petugasMonitoringPusat]).trim()
-        : row["Petugas Monitoring Pusat"]
-        ? String(row["Petugas Monitoring Pusat"]).trim()
-        : undefined;
-
     const rawSbu = String(
       (mapping.sbu && row[mapping.sbu]) ||
       row["SBU"] ||
       row["sbu"] ||
+      row["Wilayah"] ||
       "SBU Operasional"
     ).trim();
+
+    const isSbuValue = (val?: string): boolean => {
+      if (!val) return false;
+      const vUpper = val.toUpperCase().trim();
+      return (
+        vUpper === rawSbu.toUpperCase() ||
+        sbuOptions.some((s) => s.code === vUpper || s.label.toUpperCase() === vUpper)
+      );
+    };
+
+    // Ambil nama Petugas QC SBU, jangan sampai mengambil kode atau nama SBU
+    let rawPetugasQc: string | undefined = undefined;
+    if (mapping.petugasQc && mapping.petugasQc !== mapping.sbu && row[mapping.petugasQc] !== undefined) {
+      const candidate = String(row[mapping.petugasQc]).trim();
+      if (candidate && !isSbuValue(candidate)) {
+        rawPetugasQc = candidate;
+      }
+    }
+
+    if (!rawPetugasQc) {
+      const directQcVal =
+        row["Petugas QC SBU"] ??
+        row["Nama Petugas QC SBU"] ??
+        row["Petugas QC"] ??
+        row["Nama Petugas QC"] ??
+        row["QC SBU"] ??
+        row["Pengawas SBU"] ??
+        row["Waslak"];
+      if (directQcVal !== undefined && directQcVal !== null) {
+        const cStr = String(directQcVal).trim();
+        if (cStr && !isSbuValue(cStr)) {
+          rawPetugasQc = cStr;
+        }
+      }
+    }
+
+    if (!rawPetugasQc) {
+      const qcColKey = Object.keys(row).find((k) => {
+        const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+        return (
+          (cleanK.includes("petugasqc") ||
+            cleanK.includes("qcsbu") ||
+            cleanK === "waslak" ||
+            cleanK === "pengawas") &&
+          cleanK !== "sbu" &&
+          !cleanK.includes("mitra") &&
+          !cleanK.includes("pusat")
+        );
+      });
+      if (qcColKey && row[qcColKey]) {
+        const cStr = String(row[qcColKey]).trim();
+        if (cStr && !isSbuValue(cStr)) {
+          rawPetugasQc = cStr;
+        }
+      }
+    }
+
+    let rawMonitoringPusat =
+      mapping.petugasMonitoringPusat &&
+      mapping.petugasMonitoringPusat !== mapping.sbu &&
+      row[mapping.petugasMonitoringPusat]
+        ? String(row[mapping.petugasMonitoringPusat]).trim()
+        : row["Petugas Monitoring Pusat"]
+        ? String(row["Petugas Monitoring Pusat"]).trim()
+        : row["Monitoring Pusat"]
+        ? String(row["Monitoring Pusat"]).trim()
+        : undefined;
+    if (rawMonitoringPusat && isSbuValue(rawMonitoringPusat)) {
+      rawMonitoringPusat = undefined;
+    }
+
+    let rawPetugas = String(
+      (mapping.petugas && mapping.petugas !== mapping.sbu && row[mapping.petugas]) ||
+      row["Petugas Mitra"] ||
+      row["Nama Petugas Mitra"] ||
+      row["Petugas"] ||
+      row["Teknisi"] ||
+      "Petugas Mitra"
+    ).trim();
+    if (isSbuValue(rawPetugas)) {
+      rawPetugas = "Petugas Mitra";
+    }
 
     const rawKp =
       mapping.kp && row[mapping.kp]

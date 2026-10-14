@@ -602,6 +602,25 @@ export async function saveCustomDataToIndexedDB(
   }
 }
 
+export function isSbuCodeOrLabel(val?: string): boolean {
+  if (!val) return false;
+  const upper = val.toUpperCase().trim();
+  return sbuOptions.some((s) => s.code === upper || s.label.toUpperCase() === upper);
+}
+
+export function sanitizeViolation(v: Violation): Violation {
+  if (v.petugasQc && (v.petugasQc === v.sbu || isSbuCodeOrLabel(v.petugasQc))) {
+    v.petugasQc = undefined;
+  }
+  if (v.petugas && (v.petugas === v.sbu || isSbuCodeOrLabel(v.petugas))) {
+    v.petugas = "Petugas Mitra";
+  }
+  if (v.petugasMonitoringPusat && (v.petugasMonitoringPusat === v.sbu || isSbuCodeOrLabel(v.petugasMonitoringPusat))) {
+    v.petugasMonitoringPusat = undefined;
+  }
+  return v;
+}
+
 export async function hydrateCustomDataFromIndexedDB(): Promise<{
   violations: Violation[];
   mitraList: Mitra[];
@@ -631,7 +650,9 @@ export async function hydrateCustomDataFromIndexedDB(): Promise<{
 
     if (result) {
       const deletedIds = new Set(getDeletedViolationIds());
-      const activeViolations = result.violations.filter((v) => !deletedIds.has(v.id));
+      const activeViolations = result.violations
+        .filter((v) => !deletedIds.has(v.id))
+        .map(sanitizeViolation);
       violations.length = 0;
       violations.push(...activeViolations);
 
@@ -654,7 +675,9 @@ export function getCustomViolationsFromStorage(): Violation[] {
     const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
     if (!raw) return violations.length > 0 ? [...violations] : [];
     const list = JSON.parse(raw) as Violation[];
-    const cleaned = list.filter((v) => v.jenis !== "Pemeriksaan Lapangan");
+    const cleaned = list
+      .filter((v) => v.jenis !== "Pemeriksaan Lapangan")
+      .map(sanitizeViolation);
     if (cleaned.length !== list.length) {
       localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(cleaned));
     }
@@ -730,7 +753,7 @@ export function restoreCustomViolationsFromStorage() {
     const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
     const list: Violation[] = raw ? JSON.parse(raw) : [];
     const deletedIds = new Set(getDeletedViolationIds());
-    for (const item of [...list].reverse()) {
+    for (const item of [...list].reverse().map(sanitizeViolation)) {
       if (deletedIds.has(item.id)) continue;
       const existing = violations.find((v) => v.id === item.id || (v.idPa === item.idPa && v.jenis === item.jenis));
       if (!existing) {

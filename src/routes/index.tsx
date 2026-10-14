@@ -1557,7 +1557,7 @@ function Dashboard() {
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
                       <span className="font-semibold text-foreground">{v.mitra}</span> · Petugas: <span className="font-medium text-foreground">{v.petugas}</span>
-                      {v.petugasQc ? ` · QC: ${v.petugasQc}` : ""}
+                      {v.petugasQc && v.petugasQc !== v.sbu && !sbuOptions.some((s) => s.code === v.petugasQc) ? ` · QC: ${v.petugasQc}` : ""}
                     </p>
                     <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground truncate">
                       {(v.sbu || v.lokasi) && (
@@ -1644,7 +1644,13 @@ function Dashboard() {
                 <PopupDetailRow label="Petugas Mitra" value={selectedViolationDetail.petugas} />
                 <PopupDetailRow
                   label="Petugas QC SBU"
-                  value={selectedViolationDetail.petugasQc || "Belum dicatat"}
+                  value={
+                    selectedViolationDetail.petugasQc &&
+                    selectedViolationDetail.petugasQc !== selectedViolationDetail.sbu &&
+                    !sbuOptions.some((s) => s.code === selectedViolationDetail.petugasQc)
+                      ? selectedViolationDetail.petugasQc
+                      : "Belum dicatat"
+                  }
                 />
                 {selectedViolationDetail.petugasMonitoringPusat && (
                   <PopupDetailRow
