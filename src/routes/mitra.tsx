@@ -1,28 +1,30 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { getMitraScorecardData, requireRouteAccess } from "@/lib/auth-server";
-import { Download } from "lucide-react";
+import { Download, Users, ChevronRight, CheckCircle2, ShieldAlert } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   mitraList as defaultMitraList,
   violations as defaultViolations,
   zoneOf,
+  statusTone,
   getCustomViolationsFromStorage,
   getCustomMitraListFromStorage,
   getDeletedViolationIds,
   hydrateCustomDataFromIndexedDB,
-  sbuOptions,
+  type Mitra,
+  type Violation,
 } from "@/lib/iconguard-data";
 import { useEffect, useMemo, useState } from "react";
 
@@ -50,6 +52,7 @@ export const Route = createFileRoute("/mitra")({
 function MitraPage() {
   const { organization, isMitra, mitraList: loadedMitraList, violations: loadedViolations } = Route.useLoaderData();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [selectedMitraModal, setSelectedMitraModal] = useState<Mitra | null>(null);
 
   useEffect(() => {
     const onHydrated = () => setRefreshTrigger((prev) => prev + 1);
@@ -57,30 +60,6 @@ function MitraPage() {
     void hydrateCustomDataFromIndexedDB();
     return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
   }, []);
-
-  const allMitraList = useMemo(() => {
-    const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
-    const customMitra = getCustomMitraListFromStorage();
-    if (isOverridden && customMitra.length > 0) {
-      return isMitra && organization
-        ? customMitra.filter((m) => m.nama.trim().toLowerCase() === organization.trim().toLowerCase())
-        : customMitra;
-    }
-    const base = loadedMitraList ?? defaultMitraList;
-    if (customMitra.length === 0) return base;
-    const list = [...base];
-    for (const cm of customMitra) {
-      const idx = list.findIndex((m) => m.nama.trim().toLowerCase() === cm.nama.trim().toLowerCase());
-      if (idx >= 0) {
-        list[idx] = cm;
-      } else {
-        list.unshift(cm);
-      }
-    }
-    return isMitra && organization
-      ? list.filter((m) => m.nama.trim().toLowerCase() === organization.trim().toLowerCase())
-      : list;
-  }, [loadedMitraList, isMitra, organization, refreshTrigger]);
 
   const allViolations = useMemo(() => {
     const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
@@ -102,6 +81,129 @@ function MitraPage() {
       ? filtered.filter((v) => v.mitra.trim().toLowerCase() === organization.trim().toLowerCase())
       : filtered;
   }, [loadedViolations, isMitra, organization, refreshTrigger]);
+
+  const allMitraList = useMemo(() => {
+    const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
+    const customMitra = getCustomMitraListFromStorage();
+    let result: Mitra[] = [];
+
+    if (isOverridden && customMitra.length > 0) {
+      result = isMitra && organization
+        ? customMitra.filter((m) => m.nama.trim().toLowerCase() === organization.trim().toLowerCase())
+        : customMitra;
+    } else {
+      const base = loadedMitraList ?? defaultMitraList;
+      if (customMitra.length === 0) {
+        result = [...base];
+      } else {
+        const list = [...base];
+        for (const cm of customMitra) {
+          const idx = list.findIndex((m) => m.nama.trim().toLowerCase() === cm.nama.trim().toLowerCase());
+          if (idx >= 0) {
+            list[idx] = cm;
+          } else {
+            list.unshift(cm);
+          }
+        }
+        result = isMitra && organization
+          ? list.filter((m) => m.nama.trim().toLowerCase() === organization.trim().toLowerCase())
+          : list;
+      }
+    }
+
+    // Urutkan dari skor mitra tertinggi ke terendah (hingga yang tidak ada skor / 0)
+    return [...result].sort((a, b) => {
+      const skorA = a.skor ?? 0;
+      const skorB = b.skor ?? 0;
+      if (skorB !== skorA) {
+        return skorB - skorA;
+      }
+      const totalA = a.totalPelanggaran ?? 0;
+      const totalB = b.totalPelanggaran ?? 0;
+      if (totalB !== totalA) {
+        return totalB - totalA;
+      }
+      return a.nama.localeCompare(b.nama);
+    });
+  }, [loadedMitraList, isMitra, organization, refreshTrigger]);
+
+  // Agregasi daftar petugas yang melakukan pelanggaran dari mitra yang dipilih di modal
+  const officerList = useMemo(() => {
+    if (!selectedMitraModal) return [];
+    const targetName = selectedMitraModal.nama.trim().toLowerCase();
+    const map = new Map<
+      string,
+      {
+        totalPoin: number;
+        totalPelanggaran: number;
+        pelanggaranAktif: number;
+        jenisCounts: Record<string, number>;
+        tickets: Violation[];
+      }
+    >();
+
+    allViolations.forEach((v) => {
+      if (v.mitra.trim().toLowerCase() !== targetName) return;
+      const pName = (v.petugas || "Petugas Lapangan").trim();
+      if (!map.has(pName)) {
+        map.set(pName, {
+          totalPoin: 0,
+          totalPelanggaran: 0,
+          pelanggaranAktif: 0,
+          jenisCounts: {},
+          tickets: [],
+        });
+      }
+      const entry = map.get(pName)!;
+      entry.totalPoin += v.poin ?? 0;
+      entry.totalPelanggaran += 1;
+      if (v.status !== "Closed") {
+        entry.pelanggaranAktif += 1;
+      }
+      entry.jenisCounts[v.jenis] = (entry.jenisCounts[v.jenis] || 0) + 1;
+      entry.tickets.push(v);
+    });
+
+    const resultList: {
+      petugas: string;
+      totalPoin: number;
+      totalPelanggaran: number;
+      pelanggaranAktif: number;
+      dominantJenis: string;
+      tickets: Violation[];
+    }[] = [];
+
+    map.forEach((data, petugas) => {
+      let dominantJenis = "—";
+      let maxCount = 0;
+      Object.entries(data.jenisCounts).forEach(([jenis, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          dominantJenis = jenis;
+        }
+      });
+
+      resultList.push({
+        petugas,
+        totalPoin: data.totalPoin,
+        totalPelanggaran: data.totalPelanggaran,
+        pelanggaranAktif: data.pelanggaranAktif,
+        dominantJenis,
+        tickets: data.tickets.sort((a, b) => (b.poin ?? 0) - (a.poin ?? 0)),
+      });
+    });
+
+    // Urutkan dari petugas yang paling banyak mendapatkan poin pelanggaran
+    return resultList.sort((a, b) => {
+      if (b.totalPoin !== a.totalPoin) {
+        return b.totalPoin - a.totalPoin;
+      }
+      if (b.totalPelanggaran !== a.totalPelanggaran) {
+        return b.totalPelanggaran - a.totalPelanggaran;
+      }
+      return a.petugas.localeCompare(b.petugas);
+    });
+  }, [allViolations, selectedMitraModal]);
 
   return (
     <AppShell>
@@ -130,11 +232,20 @@ function MitraPage() {
             return (
               <Card
                 key={m.nama}
-                className="dashboard-enter flex flex-col justify-between"
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedMitraModal(m)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedMitraModal(m);
+                  }
+                }}
+                className="dashboard-enter flex flex-col justify-between cursor-pointer transition-all duration-200 hover:border-primary/60 hover:shadow-lg hover:-translate-y-0.5 group focus:outline-none focus:ring-2 focus:ring-primary/40"
                 style={{ animationDelay: `${Math.min(index, 6) * 90 + 100}ms` }}
               >
                 <CardHeader className="pb-3 min-h-[110px] flex flex-col justify-between space-y-2">
-                  <CardTitle className="text-base font-bold leading-snug break-words">
+                  <CardTitle className="text-base font-bold leading-snug break-words group-hover:text-primary transition-colors">
                     {m.nama}
                   </CardTitle>
                   <CardDescription className="text-xs break-all leading-relaxed text-muted-foreground">
@@ -146,7 +257,7 @@ function MitraPage() {
                   <div className="flex items-end justify-between">
                     <div>
                       <span className="text-xs text-muted-foreground block mb-0.5">Skor Penalti</span>
-                      <p className="text-3xl font-bold tracking-tight">{m.skor}</p>
+                      <p className="text-3xl font-bold tracking-tight text-foreground">{m.skor}</p>
                     </div>
                     <StatusPill tone={zone.tone}>{zone.label}</StatusPill>
                   </div>
@@ -155,6 +266,10 @@ function MitraPage() {
                     <span>{m.pelanggaranAktif} pelanggaran aktif</span>
                     <span>{m.totalPelanggaran} total tercatat</span>
                   </p>
+                  <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground group-hover:text-primary transition-colors">
+                    <span className="font-medium">Lihat daftar petugas pelanggar</span>
+                    <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -170,56 +285,183 @@ function MitraPage() {
         </p>
       )}
 
-      {allViolations.length > 0 && <Card className="dashboard-enter mt-6" style={{ animationDelay: "550ms" }}>
-        <CardHeader>
-          <CardTitle>Riwayat Pelanggaran Mitra</CardTitle>
-          <CardDescription>Rekap seluruh tiket pada periode berjalan</CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tiket</TableHead>
-                <TableHead>ID PA ICRM</TableHead>
-                <TableHead>Tgl Cek</TableHead>
-                <TableHead>SBU / KP</TableHead>
-                <TableHead>Mitra</TableHead>
-                <TableHead>Petugas Mitra</TableHead>
-                <TableHead>Petugas QC SBU</TableHead>
-                <TableHead>ID FAT</TableHead>
-                <TableHead>Jenis Temuan</TableHead>
-                <TableHead>Kategori</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Poin</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allViolations.map((v) => (
-                <TableRow key={v.id}>
-                  <TableCell className="font-mono text-xs">{v.id}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {v.idPa ?? "Belum dicatat"}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{v.tanggalCek || v.createdAt || "—"}</TableCell>
-                  <TableCell className="text-xs">{v.sbu ? `${v.sbu}${v.kp ? ` (${v.kp})` : ""}` : v.lokasi}</TableCell>
-                  <TableCell className="font-medium">{v.mitra}</TableCell>
-                  <TableCell>{v.petugas}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {v.petugasQc && v.petugasQc !== v.sbu && !sbuOptions.some((s) => s.code === v.petugasQc)
-                      ? v.petugasQc
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{v.idFat || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{v.jenis}</TableCell>
-                  <TableCell>{v.severity}</TableCell>
-                  <TableCell>{v.status}</TableCell>
-                  <TableCell className="text-right font-semibold">{v.poin}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>}
+      {/* Pop-up Dialog Daftar Petugas Pelanggar dari Mitra Terpilih */}
+      <Dialog
+        open={Boolean(selectedMitraModal)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedMitraModal(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          {selectedMitraModal && (
+            <>
+              <DialogHeader>
+                <div className="flex flex-wrap items-center gap-2 pr-6">
+                  <span className="font-mono text-xs font-bold rounded bg-secondary px-2.5 py-1 text-primary">
+                    {selectedMitraModal.kontrak}
+                  </span>
+                  <StatusPill tone={zoneOf(selectedMitraModal.skor).tone}>
+                    {zoneOf(selectedMitraModal.skor).label}
+                  </StatusPill>
+                  <span className="ml-auto font-mono text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
+                    Total {selectedMitraModal.skor} Poin Penalti
+                  </span>
+                </div>
+                <DialogTitle className="mt-2 text-lg font-bold leading-snug">
+                  {selectedMitraModal.nama}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground flex flex-wrap items-center gap-2 mt-0.5">
+                  {selectedMitraModal.pic && (
+                    <span>
+                      PIC: <strong className="text-foreground">{selectedMitraModal.pic}</strong>
+                    </span>
+                  )}
+                  <span>•</span>
+                  <span>
+                    {selectedMitraModal.totalPelanggaran} Total Pelanggaran ({selectedMitraModal.pelanggaranAktif} Aktif)
+                  </span>
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Rangkuman KPI Mitra */}
+              <div className="grid grid-cols-3 gap-2.5 my-1 text-xs">
+                <div className="p-3 rounded-lg border border-border bg-muted/30">
+                  <span className="text-[11px] text-muted-foreground block">Akumulasi Penalti</span>
+                  <p className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">
+                    {selectedMitraModal.skor}{" "}
+                    <span className="text-xs font-normal text-muted-foreground">Pts</span>
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-muted/30">
+                  <span className="text-[11px] text-muted-foreground block">Kasus Pelanggaran</span>
+                  <p className="text-lg font-bold text-foreground mt-0.5">
+                    {selectedMitraModal.totalPelanggaran}{" "}
+                    <span className="text-xs font-normal text-muted-foreground">kasus</span>
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-muted/30">
+                  <span className="text-[11px] text-muted-foreground block">Petugas Terlibat</span>
+                  <p className="text-lg font-bold text-primary mt-0.5">
+                    {officerList.length}{" "}
+                    <span className="text-xs font-normal text-muted-foreground">orang</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Header List Petugas */}
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground flex items-center gap-1.5">
+                  <Users className="size-3.5 text-primary" />
+                  Daftar Petugas Pelanggar (Poin Tertinggi ke Terendah)
+                </p>
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  {officerList.length} Personil
+                </span>
+              </div>
+
+              {/* List Petugas */}
+              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                {officerList.length > 0 ? (
+                  officerList.map((off, idx) => (
+                    <div
+                      key={off.petugas}
+                      className="rounded-xl border border-border bg-card p-3.5 text-xs transition-all hover:border-primary/40 hover:bg-muted/20"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span
+                            className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                              idx === 0
+                                ? "bg-rose-500 text-white"
+                                : idx === 1
+                                ? "bg-amber-500 text-white"
+                                : idx === 2
+                                ? "bg-orange-500 text-white"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {idx + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-foreground text-sm truncate break-all">
+                              {off.petugas}
+                            </p>
+                            <p className="text-muted-foreground mt-0.5 text-xs flex flex-wrap items-center gap-2">
+                              <span>
+                                {off.totalPelanggaran} Kasus Pelanggaran
+                                {off.pelanggaranAktif > 0 ? ` (${off.pelanggaranAktif} Aktif)` : ""}
+                              </span>
+                              <span>•</span>
+                              <span className="truncate">
+                                Sering: <strong className="text-rose-600 dark:text-rose-400">{off.dominantJenis}</strong>
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full font-mono text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                            {off.totalPoin} Pts
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Riwayat Tiket Singkat Petugas */}
+                      {off.tickets.length > 0 && (
+                        <div className="mt-2.5 pt-2.5 border-t border-border/60">
+                          <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">
+                            Rincian Tiket Pelanggaran ({off.tickets.length}):
+                          </p>
+                          <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                            {off.tickets.map((t) => (
+                              <div
+                                key={t.id}
+                                className="flex items-center justify-between gap-2 p-1.5 rounded bg-muted/40 text-[11px]"
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-mono text-muted-foreground shrink-0">{t.id}</span>
+                                  <span className="truncate font-medium text-foreground">{t.jenis}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">
+                                    {t.poin} Pts
+                                  </span>
+                                  <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                    <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
+                    <p className="font-semibold text-foreground text-base">Nihil Pelanggaran Petugas</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Seluruh petugas mitra {selectedMitraModal.nama} memiliki catatan kepatuhan 100% bersih tanpa poin sanksi.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-2 pt-2">
+                <Button variant="outline" onClick={() => setSelectedMitraModal(null)}>
+                  Tutup
+                </Button>
+                <Button asChild>
+                  <Link to="/pelanggaran">
+                    Buka Halaman Pelanggaran
+                  </Link>
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
