@@ -48,6 +48,7 @@ import {
   getDeletedViolationIds,
   hydrateCustomDataFromIndexedDB,
   sbuOptions,
+  sbuMitraMapping,
 } from "@/lib/iconguard-data";
 import { getDashboardData, requireRouteAccess } from "@/lib/auth-server";
 import { ExcelImportModal } from "@/components/excel-import-modal";
@@ -69,26 +70,62 @@ function extractMonthKey(dateRaw?: string): string {
   return "";
 }
 
-function getSbuKey(v: Violation): string {
-  const raw = (v.sbu || v.lokasi || "").trim().toUpperCase();
-  if (!raw) return "LAINNYA";
+function getSbuInfo(input?: string | Violation): { code: string; label: string; full: string } {
+  let raw = "";
+  if (!input) return { code: "—", label: "—", full: "—" };
+  if (typeof input === "string") {
+    raw = input.trim().toUpperCase();
+  } else {
+    raw = (input.sbu || input.lokasi || "").trim().toUpperCase();
+  }
+
+  // Fallback via mitra mapping if raw is empty
+  if (!raw || raw === "—" || raw === "LAINNYA") {
+    if (typeof input !== "string" && input?.mitra) {
+      const mName = input.mitra.trim().toLowerCase();
+      for (const [code, partners] of Object.entries(sbuMitraMapping)) {
+        if (partners.some((p) => p.nama.trim().toLowerCase() === mName)) {
+          const opt = sbuOptions.find((s) => s.code === code);
+          const label = opt?.label || code;
+          return {
+            code,
+            label,
+            full: `${code} — ${label}`,
+          };
+        }
+      }
+    }
+    return { code: "—", label: "—", full: "—" };
+  }
 
   for (const sbu of sbuOptions) {
     if (raw.includes(sbu.code) || raw.includes(sbu.label)) {
-      return sbu.code;
+      return { code: sbu.code, label: sbu.label, full: `${sbu.code} — ${sbu.label}` };
     }
   }
 
   for (const [key, conf] of Object.entries(SBU_REGIONAL_CONFIG)) {
-    if (raw.includes(key) || raw.startsWith(key)) return key;
-    if (conf.label && raw.includes(conf.label.toUpperCase())) return key;
-    if (conf.short && raw.includes(conf.short.toUpperCase())) return key;
+    if (raw.includes(key) || raw.startsWith(key) || (conf.label && raw.includes(conf.label.toUpperCase()))) {
+      const label = conf.label || conf.short || key;
+      return { code: key, label, full: `${key} — ${label}` };
+    }
   }
 
   const match = raw.match(/^(\d{2}[A-Z]+)/);
-  if (match && match[1]) return match[1];
+  if (match && match[1]) {
+    const opt = sbuOptions.find((s) => s.code === match[1]);
+    if (opt) {
+      return { code: opt.code, label: opt.label, full: `${opt.code} — ${opt.label}` };
+    }
+    return { code: match[1], label: match[1], full: match[1] };
+  }
 
-  return raw || "LAINNYA";
+  return { code: raw, label: raw, full: raw };
+}
+
+function getSbuKey(v: Violation): string {
+  const info = getSbuInfo(v);
+  return info.code !== "—" ? info.code : "LAINNYA";
 }
 
 function leaderboardZoneOf(skor: number) {
@@ -546,7 +583,17 @@ function Dashboard() {
   const dynamicPetugasTerbaik = useMemo(() => {
     const targetMonth = selectedMonth || dynamicTrenBulanan[dynamicTrenBulanan.length - 1]?.bulan || "Okt";
 
-    const officerStats: Record<string, { nama: string; mitra: string; totalInspeksi: number; violations: number }> = {};
+    const officerStats: Record<
+      string,
+      {
+        nama: string;
+        mitra: string;
+        sbuCounts: Record<string, number>;
+        totalInspeksi: number;
+        violations: number;
+        tickets: Violation[];
+      }
+    > = {};
 
     allViolations.forEach((v) => {
       const vMonth = extractMonthKey(v.tanggalCek || v.createdAt);
@@ -558,12 +605,19 @@ function Dashboard() {
         officerStats[key] = {
           nama: v.petugas.trim(),
           mitra: v.mitra.trim(),
+          sbuCounts: {},
           totalInspeksi: 0,
           violations: 0,
+          tickets: [],
         };
       }
 
       officerStats[key].totalInspeksi += 1;
+      officerStats[key].tickets.push(v);
+      const sbuVal = (v.sbu || v.lokasi || "").trim();
+      if (sbuVal) {
+        officerStats[key].sbuCounts[sbuVal] = (officerStats[key].sbuCounts[sbuVal] || 0) + 1;
+      }
       if (v.status !== "Closed" || v.poin > 0) {
         officerStats[key].violations += 1;
       }
@@ -571,7 +625,24 @@ function Dashboard() {
 
     let cleanOfficers = Object.values(officerStats)
       .filter((o) => o.violations === 0)
-      .sort((a, b) => b.totalInspeksi - a.totalInspeksi);
+      .sort((a, b) => b.totalInspeksi - a.totalInspeksi)
+      .map((o) => {
+        let topSbu = "";
+        let maxSbuCount = 0;
+        Object.entries(o.sbuCounts).forEach(([sbu, count]) => {
+          if (count > maxSbuCount) {
+            maxSbuCount = count;
+            topSbu = sbu;
+          }
+        });
+        const sbuInfo = getSbuInfo(topSbu || o.tickets[0] || ({ mitra: o.mitra } as any));
+        return {
+          ...o,
+          sbuInfo,
+          sbu: sbuInfo.full !== "—" ? sbuInfo.full : topSbu || "—",
+          sbuCode: sbuInfo.code !== "—" ? sbuInfo.code : topSbu || "—",
+        };
+      });
 
     if (cleanOfficers.length === 0) {
       const violatingOfficerNames = new Set(
@@ -580,14 +651,30 @@ function Dashboard() {
           .map((v) => v.petugas?.trim().toLowerCase())
       );
 
-      const catalogOfficers: { nama: string; mitra: string; totalInspeksi: number; violations: number }[] = [];
+      const catalogOfficers: {
+        nama: string;
+        mitra: string;
+        sbuCounts: Record<string, number>;
+        sbuInfo: ReturnType<typeof getSbuInfo>;
+        sbu: string;
+        sbuCode: string;
+        totalInspeksi: number;
+        violations: number;
+        tickets: Violation[];
+      }[] = [];
       allMitraList.forEach((m) => {
         if (m.pic && !violatingOfficerNames.has(m.pic.trim().toLowerCase())) {
+          const sbuInfo = getSbuInfo({ mitra: m.nama } as any);
           catalogOfficers.push({
             nama: m.pic,
             mitra: m.nama,
+            sbuCounts: {},
+            sbuInfo,
+            sbu: sbuInfo.full,
+            sbuCode: sbuInfo.code,
             totalInspeksi: 1,
             violations: 0,
+            tickets: [],
           });
         }
       });
@@ -618,6 +705,8 @@ function Dashboard() {
       {
         nama: string;
         mitra: string;
+        sbuCounts: Record<string, number>;
+        kpCounts: Record<string, number>;
         totalViolations: number;
         totalPoin: number;
         openCount: number;
@@ -638,6 +727,8 @@ function Dashboard() {
         officerViolations[key] = {
           nama: v.petugas.trim(),
           mitra: v.mitra.trim(),
+          sbuCounts: {},
+          kpCounts: {},
           totalViolations: 0,
           totalPoin: 0,
           openCount: 0,
@@ -655,6 +746,17 @@ function Dashboard() {
       officerViolations[key].jenisFrequency[v.jenis] =
         (officerViolations[key].jenisFrequency[v.jenis] || 0) + 1;
       officerViolations[key].tickets.push(v);
+
+      const sbuVal = (v.sbu || v.lokasi || "").trim();
+      if (sbuVal) {
+        officerViolations[key].sbuCounts[sbuVal] =
+          (officerViolations[key].sbuCounts[sbuVal] || 0) + 1;
+      }
+      const kpVal = (v.kp || "").trim();
+      if (kpVal) {
+        officerViolations[key].kpCounts[kpVal] =
+          (officerViolations[key].kpCounts[kpVal] || 0) + 1;
+      }
     });
 
     return Object.values(officerViolations)
@@ -667,9 +769,35 @@ function Dashboard() {
             topJenis = jenis;
           }
         });
+
+        // Resolve dominant SBU
+        let topSbu = "";
+        let maxSbuCount = 0;
+        Object.entries(item.sbuCounts).forEach(([sbu, count]) => {
+          if (count > maxSbuCount) {
+            maxSbuCount = count;
+            topSbu = sbu;
+          }
+        });
+        const sbuInfo = getSbuInfo(topSbu || item.tickets[0] || ({ mitra: item.mitra } as any));
+
+        // Resolve dominant KP
+        let topKp = "";
+        let maxKpCount = 0;
+        Object.entries(item.kpCounts).forEach(([kp, count]) => {
+          if (count > maxKpCount) {
+            maxKpCount = count;
+            topKp = kp;
+          }
+        });
+
         return {
           ...item,
           dominantJenis: topJenis,
+          sbuInfo,
+          sbu: sbuInfo.full !== "—" ? sbuInfo.full : topSbu || "—",
+          sbuCode: sbuInfo.code !== "—" ? sbuInfo.code : topSbu || "—",
+          kp: topKp || item.tickets.find((t) => t.kp)?.kp || "",
         };
       })
       .sort((a, b) => b.totalViolations - a.totalViolations || b.totalPoin - a.totalPoin)
@@ -1252,9 +1380,14 @@ function Dashboard() {
                         </span>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      Mitra: <span className="font-semibold text-foreground">{p.mitra}</span>
-                    </p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
+                      <span className="inline-flex items-center rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0 font-mono">
+                        {p.sbuCode !== "—" ? p.sbuCode : "SBU"}
+                      </span>
+                      <span className="truncate">
+                        Mitra: <span className="font-semibold text-foreground">{p.mitra}</span>
+                      </span>
+                    </div>
                     <p className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>Bulan: <strong className="text-foreground">{selectedTrend.bulan}</strong></span>
                       <span className="text-emerald-600 dark:text-emerald-400 font-medium shrink-0">✓ 100% Kepatuhan QC</span>
@@ -1336,9 +1469,14 @@ function Dashboard() {
                         </span>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      Mitra: <span className="font-semibold text-foreground">{p.mitra}</span>
-                    </p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
+                      <span className="inline-flex items-center rounded bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.2 text-[10px] font-bold text-rose-600 dark:text-rose-400 shrink-0 font-mono">
+                        {p.sbuCode !== "—" ? p.sbuCode : "SBU"}
+                      </span>
+                      <span className="truncate">
+                        Mitra: <span className="font-semibold text-foreground">{p.mitra}</span>
+                      </span>
+                    </div>
                     <p className="flex items-center justify-between text-xs text-muted-foreground truncate">
                       <span className="truncate">
                         Sering: <strong className="text-rose-600 dark:text-rose-400">{p.dominantJenis}</strong>
@@ -1421,9 +1559,16 @@ function Dashboard() {
                       <span className="font-semibold text-foreground">{v.mitra}</span> · Petugas: <span className="font-medium text-foreground">{v.petugas}</span>
                       {v.petugasQc ? ` · QC: ${v.petugasQc}` : ""}
                     </p>
-                    <p className="font-mono text-xs text-muted-foreground truncate">
-                      ID PA: <span className="font-semibold text-foreground">{v.idPa ?? "Belum dicatat"}</span>
-                    </p>
+                    <div className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground truncate">
+                      {(v.sbu || v.lokasi) && (
+                        <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold text-primary font-mono shrink-0">
+                          {getSbuInfo(v).code}
+                        </span>
+                      )}
+                      <span className="truncate">
+                        ID PA: <span className="font-semibold text-foreground">{v.idPa ?? "Belum dicatat"}</span>
+                      </span>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -1717,12 +1862,31 @@ function Dashboard() {
                     Detail Petugas Terbaik · Bulan {selectedTrend.bulan}
                   </span>
                 </div>
-                <DialogTitle className="mt-1 text-lg">{selectedPetugasDetail.nama}</DialogTitle>
-                <DialogDescription>Mitra: {selectedPetugasDetail.mitra}</DialogDescription>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <DialogTitle className="text-lg">{selectedPetugasDetail.nama}</DialogTitle>
+                  <span className="inline-flex items-center rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                    SBU {selectedPetugasDetail.sbuCode}
+                  </span>
+                </div>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Mitra: <strong className="text-foreground">{selectedPetugasDetail.mitra}</strong>
+                  {selectedPetugasDetail.sbu && selectedPetugasDetail.sbu !== "—" ? (
+                    <> · Wilayah: <strong className="text-foreground">{selectedPetugasDetail.sbu}</strong></>
+                  ) : ""}
+                </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
                 <PopupDetailRow label="Nama Petugas Mitra" value={selectedPetugasDetail.nama} />
+                <PopupDetailRow
+                  label="Wilayah Operasional SBU"
+                  value={
+                    <span className="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                      <Building2 className="size-3.5 shrink-0" />
+                      {selectedPetugasDetail.sbu}
+                    </span>
+                  }
+                />
                 <PopupDetailRow label="Perusahaan Mitra" value={selectedPetugasDetail.mitra} />
                 <PopupDetailRow label="Bulan Evaluasi" value={`Bulan ${selectedTrend.bulan}`} />
                 <PopupDetailRow label="Status Kepatuhan QC" value="Nihil Pelanggaran (100% Patuh)" />
@@ -1804,12 +1968,37 @@ function Dashboard() {
                     Evaluasi Petugas Perlu Pembinaan · Bulan {selectedTrend.bulan}
                   </span>
                 </div>
-                <DialogTitle className="mt-1 text-lg">{selectedPetugasTerburukDetail.nama}</DialogTitle>
-                <DialogDescription>Perusahaan Mitra: {selectedPetugasTerburukDetail.mitra}</DialogDescription>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <DialogTitle className="text-lg">{selectedPetugasTerburukDetail.nama}</DialogTitle>
+                  <span className="inline-flex items-center rounded-md bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-600 dark:text-rose-400 font-mono">
+                    SBU {selectedPetugasTerburukDetail.sbuCode}
+                  </span>
+                </div>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Perusahaan Mitra: <strong className="text-foreground">{selectedPetugasTerburukDetail.mitra}</strong>
+                  {selectedPetugasTerburukDetail.sbu && selectedPetugasTerburukDetail.sbu !== "—" ? (
+                    <> · Wilayah: <strong className="text-foreground">{selectedPetugasTerburukDetail.sbu}</strong></>
+                  ) : ""}
+                </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
                 <PopupDetailRow label="Nama Petugas Lapangan" value={selectedPetugasTerburukDetail.nama} />
+                <PopupDetailRow
+                  label="Wilayah Operasional SBU"
+                  value={
+                    <span className="inline-flex items-center gap-1.5 font-bold text-primary">
+                      <Building2 className="size-3.5 shrink-0" />
+                      {selectedPetugasTerburukDetail.sbu}
+                    </span>
+                  }
+                />
+                {selectedPetugasTerburukDetail.kp && (
+                  <PopupDetailRow
+                    label="Kantor Perwakilan (KP)"
+                    value={selectedPetugasTerburukDetail.kp}
+                  />
+                )}
                 <PopupDetailRow label="Perusahaan Mitra" value={selectedPetugasTerburukDetail.mitra} />
                 <PopupDetailRow label="Bulan Evaluasi" value={`Bulan ${selectedTrend.bulan}`} />
                 <PopupDetailRow
@@ -1838,38 +2027,52 @@ function Dashboard() {
                     Daftar Pelanggaran Petugas Bulan {selectedTrend.bulan} ({selectedPetugasTerburukDetail.tickets.length})
                   </p>
                   <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
-                    {selectedPetugasTerburukDetail.tickets.map((t) => (
-                      <div
-                        key={t.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          setSelectedPetugasTerburukDetail(null);
-                          setSelectedViolationDetail(t);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
+                    {selectedPetugasTerburukDetail.tickets.map((t) => {
+                      const tSbu = t.sbu || t.lokasi || selectedPetugasTerburukDetail.sbuCode;
+                      return (
+                        <div
+                          key={t.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
                             setSelectedPetugasTerburukDetail(null);
                             setSelectedViolationDetail(t);
-                          }
-                        }}
-                        className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-rose-500/40 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-foreground truncate">{t.jenis}</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <StatusPill tone={severityTone(t.severity)}>{t.severity}</StatusPill>
-                            <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setSelectedPetugasTerburukDetail(null);
+                              setSelectedViolationDetail(t);
+                            }
+                          }}
+                          className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-rose-500/40 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-foreground truncate">{t.jenis}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <StatusPill tone={severityTone(t.severity)}>{t.severity}</StatusPill>
+                              <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                            </div>
                           </div>
+                          <p className="mt-1 text-muted-foreground flex flex-wrap items-center gap-1.5">
+                            {tSbu && tSbu !== "—" && (
+                              <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold text-primary font-mono">
+                                {tSbu}
+                              </span>
+                            )}
+                            {t.kp && (
+                              <span className="text-[11px] text-muted-foreground">
+                                KP: <strong className="text-foreground">{t.kp}</strong> ·
+                              </span>
+                            )}
+                            <span>ID PA: <span className="font-mono text-foreground">{t.idPa ?? t.id}</span></span>
+                            <span>·</span>
+                            <span>Poin: <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{t.poin} Pts</span></span>
+                            {t.tanggalCek ? <span>· Tgl Cek: {t.tanggalCek}</span> : ""}
+                          </p>
                         </div>
-                        <p className="mt-1 text-muted-foreground">
-                          ID PA: <span className="font-mono text-foreground">{t.idPa ?? t.id}</span> · Poin:{" "}
-                          <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{t.poin} Pts</span>
-                          {t.tanggalCek ? ` · Tgl Cek: ${t.tanggalCek}` : ""}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1901,7 +2104,7 @@ function PopupDetailRow({
   mono = false,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   mono?: boolean;
 }) {
   return (
