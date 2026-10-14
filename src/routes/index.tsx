@@ -103,6 +103,131 @@ function leaderboardZoneOf(skor: number) {
   return { ...zone, progressClass };
 }
 
+interface Bar3DProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: any;
+  trendFilterType: "bulan" | "sbu";
+  selectedMonth: string;
+  selectedSbuForKpi: string | null;
+}
+
+function Bar3D(props: Bar3DProps) {
+  const {
+    x,
+    y,
+    width,
+    height,
+    payload,
+    trendFilterType,
+    selectedMonth,
+    selectedSbuForKpi,
+  } = props;
+
+  if (
+    x === undefined ||
+    y === undefined ||
+    width === undefined ||
+    height === undefined ||
+    isNaN(x) ||
+    isNaN(y) ||
+    isNaN(width) ||
+    isNaN(height) ||
+    height <= 0
+  ) {
+    return null;
+  }
+
+  const name = String(payload?.name || payload?.key || payload?.bulan || "");
+  const isSelected =
+    trendFilterType === "sbu"
+      ? name === selectedSbuForKpi
+      : name === selectedMonth;
+  const isAnySbuSelected = trendFilterType === "sbu" && Boolean(selectedSbuForKpi);
+  const isDimmed = isAnySbuSelected && !isSelected;
+
+  // 3D Perspective Offsets (Isometric cuboid depth)
+  const depthX = Math.round(Math.max(4, Math.min(8, width * 0.28)));
+  const depthY = Math.round(Math.max(3, Math.min(5, depthX * 0.6)));
+
+  // Polygon coordinates:
+  // 1. Top face (roof highlight):
+  const topPath = `M ${x},${y} L ${x + depthX},${y - depthY} L ${x + width + depthX},${y - depthY} L ${x + width},${y} Z`;
+
+  // 2. Right face (side wall in shadow):
+  const rightPath = `M ${x + width},${y} L ${x + width + depthX},${y - depthY} L ${x + width + depthX},${y + height - depthY} L ${x + width},${y + height} Z`;
+
+  // Colors based on state
+  let frontFill = "url(#bar3DFront)";
+  let topFill = "#7dd3fc";
+  let topStroke = "#38bdf8";
+  let rightFill = "#0369a1";
+  let rightStroke = "#0284c7";
+  let frontStroke = "#0284c7";
+  let filter = "url(#bar3DShadow)";
+  let opacity = 1;
+
+  if (isSelected) {
+    frontFill = "url(#bar3DFrontSelected)";
+    topFill = "#bfdbfe";
+    topStroke = "#93c5fd";
+    rightFill = "#1e40af";
+    rightStroke = "#1d4ed8";
+    frontStroke = "#3b82f6";
+    filter = "url(#bar3DSelectedGlow)";
+    opacity = 1;
+  } else if (isDimmed) {
+    frontFill = "url(#bar3DFrontMuted)";
+    topFill = "rgba(186, 230, 253, 0.4)";
+    topStroke = "transparent";
+    rightFill = "rgba(3, 105, 161, 0.25)";
+    rightStroke = "transparent";
+    frontStroke = "transparent";
+    filter = "none";
+    opacity = 0.55;
+  }
+
+  return (
+    <g
+      className="transition-all duration-200 cursor-pointer hover:brightness-110"
+      role="button"
+      tabIndex={0}
+      aria-label={`${name}: ${payload?.jumlah ?? 0} laporan`}
+      style={{ opacity, cursor: "pointer" }}
+    >
+      {/* Front Face */}
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={frontFill}
+        stroke={frontStroke}
+        strokeWidth={isSelected ? 1 : 0.5}
+        filter={filter}
+      />
+
+      {/* Right Face (Side Shadow) */}
+      <path
+        d={rightPath}
+        fill={rightFill}
+        stroke={rightStroke}
+        strokeWidth={0.5}
+      />
+
+      {/* Top Face (Roof Highlight) */}
+      <path
+        d={topPath}
+        fill={topFill}
+        stroke={topStroke}
+        strokeWidth={0.5}
+      />
+    </g>
+  );
+}
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -728,7 +853,7 @@ function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={activeChartData}
-                margin={{ left: -16, right: 24, top: 8 }}
+                margin={{ left: -16, right: 30, top: 18 }}
                 onClick={(state) => {
                   if (!state || !state.activePayload || state.activePayload.length === 0) return;
                   const payload = state.activePayload[0]?.payload;
@@ -748,6 +873,37 @@ function Dashboard() {
                   }
                 }}
               >
+                <defs>
+                  {/* Filter: Subtle drop shadow for 3D depth */}
+                  <filter id="bar3DShadow" x="-15%" y="-15%" width="130%" height="130%">
+                    <feDropShadow dx="1.5" dy="2.5" stdDeviation="2" floodColor="#0284c7" floodOpacity="0.25" />
+                  </filter>
+
+                  {/* Filter: Electric blue glow for selected 3D bar */}
+                  <filter id="bar3DSelectedGlow" x="-25%" y="-25%" width="150%" height="150%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#38bdf8" floodOpacity="0.6" />
+                  </filter>
+
+                  {/* Normal 3D Front Gradient */}
+                  <linearGradient id="bar3DFront" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#38bdf8" />
+                    <stop offset="35%" stopColor="#0284c7" />
+                    <stop offset="100%" stopColor="#0369a1" />
+                  </linearGradient>
+
+                  {/* Selected 3D Front Gradient */}
+                  <linearGradient id="bar3DFrontSelected" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#93c5fd" />
+                    <stop offset="35%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#1d4ed8" />
+                  </linearGradient>
+
+                  {/* Dimmed 3D Front Gradient */}
+                  <linearGradient id="bar3DFrontMuted" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.2" />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis
                   dataKey="name"
@@ -778,7 +934,7 @@ function Dashboard() {
                         <text
                           y={16}
                           textAnchor="middle"
-                          fill={isSelected ? "var(--primary)" : "var(--muted-foreground)"}
+                          fill={isSelected ? "#0284c7" : "var(--muted-foreground)"}
                           fontWeight={isSelected ? 700 : 400}
                           role="button"
                           tabIndex={0}
@@ -797,7 +953,7 @@ function Dashboard() {
                 />
                 <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip
-                  cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+                  cursor={{ fill: "rgba(2, 132, 199, 0.08)" }}
                   formatter={(value: any, _name: any, item: any) => [
                     `${value} laporan`,
                     trendFilterType === "sbu" && item?.payload?.fullLabel
@@ -811,27 +967,18 @@ function Dashboard() {
                     fontSize: 12,
                   }}
                 />
-                <Bar dataKey="jumlah" radius={[4, 4, 0, 0]} maxBarSize={34}>
-                  {activeChartData.map((entry, index) => {
-                    const isSelected =
-                      trendFilterType === "sbu"
-                        ? entry.name === selectedSbuForKpi
-                        : entry.name === selectedMonth;
-                    return (
-                      <Cell
-                        key={`cell-${index}`}
-                        cursor="pointer"
-                        fill={
-                          isSelected
-                            ? "var(--primary)"
-                            : trendFilterType === "sbu" && selectedSbuForKpi
-                            ? "hsl(var(--primary) / 0.35)"
-                            : "hsl(var(--primary) / 0.85)"
-                        }
-                      />
-                    );
-                  })}
-                </Bar>
+                <Bar
+                  dataKey="jumlah"
+                  maxBarSize={32}
+                  shape={(barProps: any) => (
+                    <Bar3D
+                      {...barProps}
+                      trendFilterType={trendFilterType}
+                      selectedMonth={selectedMonth}
+                      selectedSbuForKpi={selectedSbuForKpi}
+                    />
+                  )}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
