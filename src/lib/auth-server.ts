@@ -20,6 +20,10 @@ const appRoles = ["super-admin", "mitra", "petugas-mitra"] as const;
 const routePaths = ["/", "/lapor", "/pelanggaran", "/mitra", "/portal", "/pengguna"] as const;
 type ProtectedRoutePath = (typeof routePaths)[number];
 
+// ID unik setiap kali server dijalankan ulang (restart/start).
+// Jika server dimatikan dan dinyalakan kembali, bootId berubah dan memaksa sesi login ulang.
+const SERVER_BOOT_ID = `boot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 const routeAccess: Record<AppRole, readonly (typeof routePaths)[number][]> = {
   "super-admin": routePaths,
   mitra: ["/mitra", "/portal"],
@@ -56,6 +60,7 @@ export const getAuthStatus = createServerFn({ method: "GET" }).handler(async () 
   return {
     needsBootstrap: !firstUser,
     bootstrapEnabled: Boolean(getAuthEnvironment(request).SUPER_ADMIN_SETUP_TOKEN),
+    bootId: SERVER_BOOT_ID,
   };
 });
 
@@ -70,6 +75,7 @@ export const getCurrentAuthUser = createServerFn({ method: "GET" }).handler(asyn
     email: signedInUser.email,
     appRole: signedInUser.appRole as AppRole,
     organization: signedInUser.organization ?? "",
+    bootId: SERVER_BOOT_ID,
   };
 });
 
@@ -109,6 +115,18 @@ export const createViolationReport = createServerFn({ method: "POST" })
       severity: z.enum(["Ringan", "Sedang", "Berat"]),
       catatan: z.string(),
       bukti: z.array(z.string()).default([]),
+      tanggalCek: z.string().optional(),
+      tanggalAktivasi: z.string().optional(),
+      tanggalPermohonan: z.string().optional(),
+      petugasQc: z.string().optional(),
+      petugasMonitoringPusat: z.string().optional(),
+      kp: z.string().optional(),
+      idFat: z.string().optional(),
+      checklistResults: z.record(z.string(), z.string()).optional(),
+      qcK3: z.string().optional(),
+      qcInstalasi: z.string().optional(),
+      poin: z.number().optional(),
+      status: z.enum(["Open", "Pending Klarifikasi", "Verifikasi", "Closed", "Overdue"]).optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -171,18 +189,33 @@ export const checkRouteAccess = createServerFn({ method: "GET" })
     const role = signedInUser?.appRole as AppRole | undefined;
 
     if (!signedInUser || !role || !appRoles.includes(role)) {
-      return { authenticated: false as const, allowed: false as const, home: "/login" as const };
+      return {
+        authenticated: false as const,
+        allowed: false as const,
+        home: "/login" as const,
+        bootId: SERVER_BOOT_ID,
+      };
     }
 
     return {
       authenticated: true as const,
       allowed: routeAccess[role].includes(data.path),
       home: roleLanding[role],
+      bootId: SERVER_BOOT_ID,
     };
   });
 
 export async function requireRouteAccess(path: ProtectedRoutePath) {
   const access = await checkRouteAccess({ data: { path } });
+  if (typeof window !== "undefined") {
+    const isFreshSessionStarted = window.sessionStorage.getItem("iconguard_session_started");
+    const savedBootId = window.sessionStorage.getItem("iconguard_boot_id");
+    if (!isFreshSessionStarted || savedBootId !== access.bootId) {
+      window.sessionStorage.removeItem("iconguard_session_started");
+      window.sessionStorage.removeItem("iconguard_boot_id");
+      throw redirect({ to: "/login", replace: true });
+    }
+  }
   if (!access.authenticated) throw redirect({ to: "/login", replace: true });
   if (!access.allowed) throw redirect({ to: access.home, replace: true });
 }

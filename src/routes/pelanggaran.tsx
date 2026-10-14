@@ -37,6 +37,7 @@ import {
   statusTone,
   violations,
   getCustomViolationsFromStorage,
+  hydrateCustomDataFromIndexedDB,
   type Violation,
 } from "@/lib/iconguard-data";
 
@@ -107,8 +108,8 @@ function PelanggaranPage() {
   const visibleViolations = allViolations.filter((violation) => !deletedIds.includes(violation.id));
   const [filter, setFilter] = useState<(typeof filters)[number]>("Semua");
   const [q, setQ] = useState("");
-  const [selectedSbu, setSelectedSbu] = useState<string>("SEMUA");
-  const [selectedMonth, setSelectedMonth] = useState<string>("SEMUA");
+  const [selectedSbu, setSelectedSbu] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedId, setSelectedId] = useState("");
   const [storedEvidence, setStoredEvidence] = useState<string[]>([]);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -181,7 +182,7 @@ function PelanggaranPage() {
     });
 
     visibleViolations.forEach((v) => {
-      if (selectedSbu !== "SEMUA" && getSbuKey(v) !== selectedSbu) return;
+      if (selectedSbu && selectedSbu !== "SEMUA" && getSbuKey(v) !== selectedSbu) return;
       const m = getMonthKey(v.tanggalCek || v.createdAt);
       if (m && counts[m] !== undefined) {
         counts[m] += 1;
@@ -196,6 +197,10 @@ function PelanggaranPage() {
 
   useEffect(() => {
     setDeletedIds(getDeletedViolationIds());
+    const onHydrated = () => setRefreshTrigger((prev) => prev + 1);
+    window.addEventListener("iconguard-data-hydrated", onHydrated);
+    void hydrateCustomDataFromIndexedDB();
+    return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
   }, []);
 
   useEffect(() => {
@@ -208,7 +213,7 @@ function PelanggaranPage() {
 
   const list = useMemo(
     () => {
-      if (!selectedSbu) return [];
+      if (!selectedSbu || !selectedMonth) return [];
       return visibleViolations.filter((v) => {
         const matchesSbu = selectedSbu === "SEMUA" || getSbuKey(v) === selectedSbu;
         const vMonth = getMonthKey(v.tanggalCek || v.createdAt);
@@ -430,15 +435,27 @@ function PelanggaranPage() {
               className="dashboard-enter rounded-xl border border-dashed border-border p-10 text-center"
               style={{ animationDelay: "180ms" }}
             >
-              <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
-              <p className="font-semibold text-foreground">Tidak Ada Tiket Pelanggaran</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {`Tidak ditemukan tiket pelanggaran untuk ${
-                  selectedSbu === "SEMUA" ? "Semua SBU" : `SBU ${selectedSbu}`
-                }${
-                  selectedMonth === "SEMUA" ? "" : ` di bulan ${selectedMonth}`
-                } pada kriteria filter ini.`}
-              </p>
+              {!selectedSbu || !selectedMonth ? (
+                <>
+                  <Building2 className="size-8 text-primary mx-auto mb-2.5 opacity-80" />
+                  <p className="font-semibold text-foreground">Silakan Pilih SBU dan Bulan Terlebih Dahulu</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                    Untuk menampilkan daftar tiket pelanggaran, pilih <strong>SBU</strong> dan <strong>Bulan</strong> pada menu filter di atas.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
+                  <p className="font-semibold text-foreground">Tidak Ada Tiket Pelanggaran</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {`Tidak ditemukan tiket pelanggaran untuk ${
+                      selectedSbu === "SEMUA" ? "Semua SBU" : `SBU ${selectedSbu}`
+                    }${
+                      selectedMonth === "SEMUA" ? "" : ` di bulan ${selectedMonth}`
+                    } pada kriteria filter ini.`}
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>

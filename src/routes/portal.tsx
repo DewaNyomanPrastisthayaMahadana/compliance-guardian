@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { auditTrail, severityTone, statusTone, violations } from "@/lib/iconguard-data";
 
+import { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { getCustomViolationsFromStorage, getDeletedViolationIds } from "@/lib/iconguard-data";
+import { getCustomViolationsFromStorage, getDeletedViolationIds, hydrateCustomDataFromIndexedDB } from "@/lib/iconguard-data";
 
 export const Route = createFileRoute("/portal")({
   beforeLoad: () => requireRouteAccess("/portal"),
@@ -35,6 +36,15 @@ export const Route = createFileRoute("/portal")({
 });
 
 function PortalPage() {
+  const [, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const onHydrated = () => setRefreshTrigger((prev) => prev + 1);
+    window.addEventListener("iconguard-data-hydrated", onHydrated);
+    void hydrateCustomDataFromIndexedDB();
+    return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
+  }, []);
+
   const custom = getCustomViolationsFromStorage();
   const deleted = new Set(getDeletedViolationIds());
   const allList = [...custom, ...violations].filter((v) => !deleted.has(v.id));

@@ -552,17 +552,41 @@ export function ExcelImportModal({ open, onOpenChange, onSuccess }: ExcelImportM
             </div>
 
             {/* Preview Sample */}
-            <div className="border rounded-xl p-3 bg-muted/30">
-              <p className="text-xs font-semibold mb-2 text-foreground">Contoh Data Baris Pertama (Preview):</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                <div><span className="text-muted-foreground block text-[10px]">Tgl Cek:</span> {String(previewRows[0]?.[mapping.tanggalCek || ""] || "—")}</div>
-                <div><span className="text-muted-foreground block text-[10px]">Mitra:</span> {String(previewRows[0]?.[mapping.mitra || ""] || "—")}</div>
-                <div><span className="text-muted-foreground block text-[10px]">Petugas Mitra:</span> {String(previewRows[0]?.[mapping.petugas || ""] || "—")}</div>
-                <div><span className="text-muted-foreground block text-[10px]">QC SBU:</span> {String(previewRows[0]?.[mapping.petugasQc || ""] || "—")}</div>
-                <div><span className="text-muted-foreground block text-[10px]">Monitoring Pusat:</span> {String(previewRows[0]?.[mapping.petugasMonitoringPusat || ""] || "—")}</div>
-                <div><span className="text-muted-foreground block text-[10px]">Tgl Aktivasi:</span> {String(previewRows[0]?.[mapping.tanggalAktivasi || ""] || "—")}</div>
-                <div><span className="text-muted-foreground block text-[10px]">ID PA:</span> {String(previewRows[0]?.[mapping.idPa || ""] || "—")}</div>
-                <div><span className="text-muted-foreground block text-[10px]">SBU:</span> {String(previewRows[0]?.[mapping.sbu || ""] || "—")}</div>
+            <div className="border rounded-xl p-4 bg-muted/30">
+              <p className="text-xs font-semibold mb-3 text-foreground">Contoh Data Baris Pertama (Preview):</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-xs font-mono">
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-[10px] mb-0.5 font-sans">Tgl Cek:</span>
+                  <p className="break-words font-medium text-foreground">{String(previewRows[0]?.[mapping.tanggalCek || ""] || "—")}</p>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-[10px] mb-0.5 font-sans">Mitra:</span>
+                  <p className="break-words font-medium text-foreground">{String(previewRows[0]?.[mapping.mitra || ""] || "—")}</p>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-[10px] mb-0.5 font-sans">Petugas Mitra:</span>
+                  <p className="break-all font-medium text-foreground">{String(previewRows[0]?.[mapping.petugas || ""] || "—")}</p>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-[10px] mb-0.5 font-sans">QC SBU:</span>
+                  <p className="break-words font-medium text-foreground">{String(previewRows[0]?.[mapping.petugasQc || ""] || "—")}</p>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-[10px] mb-0.5 font-sans">Monitoring Pusat:</span>
+                  <p className="break-words font-medium text-foreground">{String(previewRows[0]?.[mapping.petugasMonitoringPusat || ""] || "—")}</p>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-[10px] mb-0.5 font-sans">Tgl Aktivasi:</span>
+                  <p className="break-words font-medium text-foreground">{String(previewRows[0]?.[mapping.tanggalAktivasi || ""] || "—")}</p>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-[10px] mb-0.5 font-sans">ID PA:</span>
+                  <p className="break-all font-medium text-foreground">{String(previewRows[0]?.[mapping.idPa || ""] || "—")}</p>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-[10px] mb-0.5 font-sans">SBU:</span>
+                  <p className="break-words font-medium text-foreground">{String(previewRows[0]?.[mapping.sbu || ""] || "—")}</p>
+                </div>
               </div>
             </div>
 

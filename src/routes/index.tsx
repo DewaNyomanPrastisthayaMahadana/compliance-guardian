@@ -10,13 +10,21 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, CheckCircle2, Clock, Gauge, Plus, FileSpreadsheet, Award, UserCheck, Table as TableIcon, Calendar } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, Clock, Gauge, Plus, FileSpreadsheet, Award, UserCheck, Table as TableIcon, Calendar, MapPin, Building2, User, UserX, FileText, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
-import { PivotTableView } from "@/components/pivot-table-view";
+import { PivotTableView, SBU_REGIONAL_CONFIG } from "@/components/pivot-table-view";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -26,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  type Violation,
   jenisDominan,
   mitraList,
   trenBulanan,
@@ -36,6 +45,8 @@ import {
   getCustomViolationsFromStorage,
   getCustomMitraListFromStorage,
   getDeletedViolationIds,
+  hydrateCustomDataFromIndexedDB,
+  sbuOptions,
 } from "@/lib/iconguard-data";
 import { getDashboardData, requireRouteAccess } from "@/lib/auth-server";
 import { ExcelImportModal } from "@/components/excel-import-modal";
@@ -55,6 +66,28 @@ function extractMonthKey(dateRaw?: string): string {
   if (dateStr.includes("nov") || dateStr.includes("-11-") || dateStr.includes("/11/")) return "Nov";
   if (dateStr.includes("des") || dateStr.includes("dec") || dateStr.includes("-12-") || dateStr.includes("/12/")) return "Des";
   return "";
+}
+
+function getSbuKey(v: Violation): string {
+  const raw = (v.sbu || v.lokasi || "").trim().toUpperCase();
+  if (!raw) return "LAINNYA";
+
+  for (const sbu of sbuOptions) {
+    if (raw.includes(sbu.code) || raw.includes(sbu.label)) {
+      return sbu.code;
+    }
+  }
+
+  for (const [key, conf] of Object.entries(SBU_REGIONAL_CONFIG)) {
+    if (raw.includes(key) || raw.startsWith(key)) return key;
+    if (conf.label && raw.includes(conf.label.toUpperCase())) return key;
+    if (conf.short && raw.includes(conf.short.toUpperCase())) return key;
+  }
+
+  const match = raw.match(/^(\d{2}[A-Z]+)/);
+  if (match && match[1]) return match[1];
+
+  return raw || "LAINNYA";
 }
 
 function leaderboardZoneOf(skor: number) {
@@ -96,6 +129,13 @@ function Dashboard() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { violations: loadedViolations, mitraList: loadedMitraList } = Route.useLoaderData();
+
+  useEffect(() => {
+    const onHydrated = () => setRefreshTrigger((prev) => prev + 1);
+    window.addEventListener("iconguard-data-hydrated", onHydrated);
+    void hydrateCustomDataFromIndexedDB();
+    return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
+  }, []);
 
   const allViolations = useMemo(() => {
     const deletedIds = new Set(getDeletedViolationIds());
@@ -153,6 +193,10 @@ function Dashboard() {
     return Math.max(0, Math.round(100 - avgPoin));
   }, [allMitraList]);
 
+  // Mode filter tren grafik: 'bulan' (Tren Pelanggaran Bulanan) atau 'sbu' (Tren Pelanggaran SBU)
+  const [trendFilterType, setTrendFilterType] = useState<"bulan" | "sbu">("bulan");
+  const [selectedSbuKey, setSelectedSbuKey] = useState<string>("01SBU");
+
   // Kalkulasi dinamis grafik jenis pelanggaran dominan dari data aktual
   const dynamicJenisDominan = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -169,7 +213,7 @@ function Dashboard() {
       .slice(0, 5);
   }, [allViolations]);
 
-  // Kalkulasi dinamis grafik tren dari data aktual (Jan - Okt)
+  // Kalkulasi dinamis grafik tren bulanan dari data aktual (Jan - Okt)
   const dynamicTrenBulanan = useMemo(() => {
     const monthCounts: Record<string, number> = {};
     const monthsOrder = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt"];
@@ -186,9 +230,78 @@ function Dashboard() {
     });
 
     return monthsOrder.map((bulan) => ({
+      name: bulan,
       bulan,
       jumlah: monthCounts[bulan] || 0,
     }));
+  }, [allViolations]);
+
+  // Kalkulasi dinamis grafik tren SBU (01SBU s.d. 10SIBT)
+  const dynamicTrenSbu = useMemo(() => {
+    const sbuKeys = [
+      "01SBU",
+      "02SBT",
+      "03SBS",
+      "04JKT",
+      "05JBB",
+      "06JTG",
+      "07JBT",
+      "08BNT",
+      "09KAL",
+      "10SIBT",
+    ];
+    const sbuCounts: Record<string, number> = {};
+    sbuKeys.forEach((key) => {
+      sbuCounts[key] = 0;
+    });
+
+    allViolations.forEach((v) => {
+      if (v.status === "Closed" && v.poin === 0) return;
+      const sKey = getSbuKey(v);
+      if (sbuCounts[sKey] !== undefined) {
+        sbuCounts[sKey] += 1;
+      } else {
+        sbuCounts[sKey] = (sbuCounts[sKey] || 0) + 1;
+      }
+    });
+
+    const result = sbuKeys.map((key) => {
+      const opt = sbuOptions.find((s) => s.code === key);
+      const conf = SBU_REGIONAL_CONFIG[key];
+      return {
+        name: key,
+        key,
+        label: key,
+        fullLabel: `${key} — ${opt?.label || conf?.label || key}`,
+        jumlah: sbuCounts[key] || 0,
+      };
+    });
+
+    Object.keys(sbuCounts).forEach((k) => {
+      if (!sbuKeys.includes(k) && sbuCounts[k] > 0) {
+        result.push({
+          name: k,
+          key: k,
+          label: k,
+          fullLabel: k,
+          jumlah: sbuCounts[k],
+        });
+      }
+    });
+
+    return result;
+  }, [allViolations]);
+
+  const activeChartData = useMemo(() => {
+    return trendFilterType === "bulan" ? dynamicTrenBulanan : dynamicTrenSbu;
+  }, [trendFilterType, dynamicTrenBulanan, dynamicTrenSbu]);
+
+  const selectedSbuSummary = useMemo(() => {
+    return dynamicTrenSbu.find((item) => item.key === selectedSbuKey) ?? dynamicTrenSbu[0];
+  }, [dynamicTrenSbu, selectedSbuKey]);
+
+  const totalViolationsCount = useMemo(() => {
+    return allViolations.filter((v) => !(v.status === "Closed" && v.poin === 0)).length;
   }, [allViolations]);
 
   const kpis = [
@@ -344,6 +457,111 @@ function Dashboard() {
       .slice()
       .reverse();
   }, [allViolations, selectedMonth]);
+
+  // 4. Kalkulasi dinamis Petugas dengan Pelanggaran Terbanyak / Sering Melakukan Kesalahan (Perlu Pembinaan)
+  const dynamicPetugasTerburuk = useMemo(() => {
+    const targetMonth = selectedMonth || dynamicTrenBulanan[dynamicTrenBulanan.length - 1]?.bulan || "Okt";
+
+    const officerViolations: Record<
+      string,
+      {
+        nama: string;
+        mitra: string;
+        totalViolations: number;
+        totalPoin: number;
+        openCount: number;
+        dominantJenis: string;
+        jenisFrequency: Record<string, number>;
+        tickets: Violation[];
+      }
+    > = {};
+
+    allViolations.forEach((v) => {
+      const vMonth = extractMonthKey(v.tanggalCek || v.createdAt);
+      if (vMonth !== targetMonth) return;
+      if (!v.petugas || v.petugas === "—") return;
+      if (v.status === "Closed" && (v.poin === 0 || !v.poin)) return;
+
+      const key = `${v.petugas.trim()}___${v.mitra.trim()}`;
+      if (!officerViolations[key]) {
+        officerViolations[key] = {
+          nama: v.petugas.trim(),
+          mitra: v.mitra.trim(),
+          totalViolations: 0,
+          totalPoin: 0,
+          openCount: 0,
+          dominantJenis: v.jenis,
+          jenisFrequency: {},
+          tickets: [],
+        };
+      }
+
+      officerViolations[key].totalViolations += 1;
+      officerViolations[key].totalPoin += (v.poin || 0);
+      if (v.status !== "Closed") {
+        officerViolations[key].openCount += 1;
+      }
+      officerViolations[key].jenisFrequency[v.jenis] =
+        (officerViolations[key].jenisFrequency[v.jenis] || 0) + 1;
+      officerViolations[key].tickets.push(v);
+    });
+
+    return Object.values(officerViolations)
+      .map((item) => {
+        let maxCount = 0;
+        let topJenis = item.dominantJenis;
+        Object.entries(item.jenisFrequency).forEach(([jenis, count]) => {
+          if (count > maxCount) {
+            maxCount = count;
+            topJenis = jenis;
+          }
+        });
+        return {
+          ...item,
+          dominantJenis: topJenis,
+        };
+      })
+      .sort((a, b) => b.totalViolations - a.totalViolations || b.totalPoin - a.totalPoin)
+      .slice(0, 5);
+  }, [allViolations, selectedMonth, dynamicTrenBulanan]);
+
+  // State Pop-up Detail untuk Kotak Monitoring Bulanan
+  const [selectedViolationDetail, setSelectedViolationDetail] = useState<Violation | null>(null);
+  const [selectedMitraDetail, setSelectedMitraDetail] = useState<
+    (typeof dynamicTop5Mitra)[number] | null
+  >(null);
+  const [selectedPetugasDetail, setSelectedPetugasDetail] = useState<
+    (typeof dynamicPetugasTerbaik)[number] | null
+  >(null);
+  const [selectedPetugasTerburukDetail, setSelectedPetugasTerburukDetail] = useState<
+    (typeof dynamicPetugasTerburuk)[number] | null
+  >(null);
+
+  const selectedMitraTickets = useMemo(() => {
+    if (!selectedMitraDetail) return [];
+    const targetMonth = selectedMonth || "Okt";
+    return allViolations.filter((v) => {
+      const vMonth = extractMonthKey(v.tanggalCek || v.createdAt);
+      return (
+        vMonth === targetMonth &&
+        v.mitra?.trim().toLowerCase() === selectedMitraDetail.nama.trim().toLowerCase()
+      );
+    });
+  }, [allViolations, selectedMitraDetail, selectedMonth]);
+
+  const selectedPetugasTickets = useMemo(() => {
+    if (!selectedPetugasDetail) return [];
+    const targetMonth = selectedMonth || "Okt";
+    return allViolations.filter((v) => {
+      const vMonth = extractMonthKey(v.tanggalCek || v.createdAt);
+      return (
+        vMonth === targetMonth &&
+        v.petugas?.trim().toLowerCase() === selectedPetugasDetail.nama.trim().toLowerCase() &&
+        v.mitra?.trim().toLowerCase() === selectedPetugasDetail.mitra.trim().toLowerCase()
+      );
+    });
+  }, [allViolations, selectedPetugasDetail, selectedMonth]);
+
   return (
     <AppShell>
       <div className="dashboard-enter">
@@ -401,33 +619,81 @@ function Dashboard() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-5">
         <Card className="dashboard-enter lg:col-span-3" style={{ animationDelay: "460ms" }}>
-          <CardHeader>
-            <CardTitle>Tren Pelanggaran Bulanan</CardTitle>
-            <CardDescription>Jumlah laporan pelanggaran yang tercatat per bulan</CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle>
+                  {trendFilterType === "bulan" ? "Tren Pelanggaran Bulanan" : "Tren Pelanggaran SBU"}
+                </CardTitle>
+              </div>
+              <CardDescription>
+                {trendFilterType === "bulan"
+                  ? "Jumlah laporan pelanggaran yang tercatat per bulan"
+                  : "Jumlah laporan pelanggaran yang tercatat per SBU"}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-muted-foreground hidden sm:inline">Pilihan:</span>
+              <Select
+                value={trendFilterType}
+                onValueChange={(val: "bulan" | "sbu") => setTrendFilterType(val)}
+              >
+                <SelectTrigger className="w-28 sm:w-32 h-8 text-xs font-semibold">
+                  {trendFilterType === "bulan" ? (
+                    <Calendar className="mr-1.5 size-3.5 text-primary shrink-0" />
+                  ) : (
+                    <Building2 className="mr-1.5 size-3.5 text-primary shrink-0" />
+                  )}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bulan" className="text-xs font-semibold">
+                    Bulan
+                  </SelectItem>
+                  <SelectItem value="sbu" className="text-xs font-semibold">
+                    SBU
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={dynamicTrenBulanan}
+                data={activeChartData}
                 margin={{ left: -20, right: 8, top: 8 }}
                 onClick={(state) => {
-                  const bulan = state?.activePayload?.[0]?.payload?.bulan;
-                  if (typeof bulan === "string") setSelectedMonth(bulan);
+                  if (trendFilterType === "bulan") {
+                    const bulan = state?.activePayload?.[0]?.payload?.bulan;
+                    if (typeof bulan === "string") setSelectedMonth(bulan);
+                  } else {
+                    const sbu = state?.activePayload?.[0]?.payload?.key;
+                    if (typeof sbu === "string") setSelectedSbuKey(sbu);
+                  }
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis
-                  dataKey="bulan"
+                  dataKey="name"
                   stroke="var(--muted-foreground)"
-                  fontSize={12}
+                  fontSize={11}
                   tick={(props) => {
                     const { x, y, payload } = props as {
                       x: number;
                       y: number;
                       payload: { value: string };
                     };
-                    const isSelected = payload.value === selectedMonth;
-                    const selectMonth = () => setSelectedMonth(payload.value);
+                    const isSelected =
+                      trendFilterType === "bulan"
+                        ? payload.value === selectedMonth
+                        : payload.value === selectedSbuKey;
+                    const onSelect = () => {
+                      if (trendFilterType === "bulan") {
+                        setSelectedMonth(payload.value);
+                      } else {
+                        setSelectedSbuKey(payload.value);
+                      }
+                    };
 
                     return (
                       <g transform={`translate(${x},${y})`}>
@@ -438,11 +704,11 @@ function Dashboard() {
                           fontWeight={isSelected ? 700 : 400}
                           role="button"
                           tabIndex={0}
-                          aria-label={`Pilih bulan ${payload.value}`}
+                          aria-label={`Pilih ${payload.value}`}
                           style={{ cursor: "pointer" }}
-                          onClick={selectMonth}
+                          onClick={onSelect}
                           onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") selectMonth();
+                            if (event.key === "Enter" || event.key === " ") onSelect();
                           }}
                         >
                           {payload.value}
@@ -453,6 +719,12 @@ function Dashboard() {
                 />
                 <YAxis stroke="var(--muted-foreground)" fontSize={12} />
                 <Tooltip
+                  formatter={(value: any, _name: any, item: any) => [
+                    `${value} laporan`,
+                    trendFilterType === "sbu" && item?.payload?.fullLabel
+                      ? item.payload.fullLabel
+                      : "Total Pelanggaran",
+                  ]}
                   contentStyle={{
                     background: "var(--card)",
                     border: "1px solid var(--border)",
@@ -466,6 +738,7 @@ function Dashboard() {
                   stroke="var(--primary)"
                   strokeWidth={3}
                   dot={{ r: 4, fill: "var(--primary)" }}
+                  activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -514,59 +787,103 @@ function Dashboard() {
       </div>
 
       <Card className="dashboard-enter mt-6" style={{ animationDelay: "660ms" }}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <div>
-            <CardTitle>Ringkasan Bulan {selectedTrend.bulan}</CardTitle>
-            <CardDescription>Total laporan pelanggaran pada bulan terpilih</CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">Pilih Bulan:</span>
-            <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
-              <SelectTrigger className="w-28 h-8 text-xs font-semibold">
-                <Calendar className="mr-1.5 size-3.5 text-primary" />
-                <SelectValue placeholder="Bulan" />
-              </SelectTrigger>
-              <SelectContent>
-                {dynamicTrenBulanan.map((tb) => (
-                  <SelectItem key={tb.bulan} value={tb.bulan} className="text-xs">
-                    Bulan {tb.bulan}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p className="text-4xl font-bold tracking-tight text-primary">{selectedTrend.jumlah}</p>
-          <p className="text-sm text-muted-foreground">laporan pelanggaran</p>
-          {previousTrend && monthChange !== null ? (
-            <p className="text-sm font-medium">
-              {monthChange > 0 ? "Naik" : monthChange < 0 ? "Turun" : "Tidak berubah"}{" "}
-              {Math.abs(monthChange)} laporan
-              <span className="font-normal text-muted-foreground">
-                {" "}
-                dibanding {previousTrend.bulan}
-              </span>
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">Bulan pertama pada grafik</p>
-          )}
-        </CardContent>
+        {trendFilterType === "bulan" ? (
+          <>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <div>
+                <CardTitle>Ringkasan Bulan {selectedTrend.bulan}</CardTitle>
+                <CardDescription>Total laporan pelanggaran pada bulan terpilih</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground hidden sm:inline">Pilih Bulan:</span>
+                <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
+                  <SelectTrigger className="w-28 h-8 text-xs font-semibold">
+                    <Calendar className="mr-1.5 size-3.5 text-primary" />
+                    <SelectValue placeholder="Bulan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dynamicTrenBulanan.map((tb) => (
+                      <SelectItem key={tb.bulan} value={tb.bulan} className="text-xs">
+                        Bulan {tb.bulan}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <p className="text-4xl font-bold tracking-tight text-primary">{selectedTrend.jumlah}</p>
+              <p className="text-sm text-muted-foreground">laporan pelanggaran</p>
+              {previousTrend && monthChange !== null ? (
+                <p className="text-sm font-medium">
+                  {monthChange > 0 ? "Naik" : monthChange < 0 ? "Turun" : "Tidak berubah"}{" "}
+                  {Math.abs(monthChange)} laporan
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    dibanding {previousTrend.bulan}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Bulan pertama pada grafik</p>
+              )}
+            </CardContent>
+          </>
+        ) : (
+          <>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <div>
+                <CardTitle>Ringkasan SBU {selectedSbuKey}</CardTitle>
+                <CardDescription>
+                  {selectedSbuSummary?.fullLabel || `SBU ${selectedSbuKey}`}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground hidden sm:inline">Pilih SBU:</span>
+                <Select value={selectedSbuKey} onValueChange={(val) => setSelectedSbuKey(val)}>
+                  <SelectTrigger className="w-36 sm:w-48 h-8 text-xs font-semibold">
+                    <Building2 className="mr-1.5 size-3.5 text-primary" />
+                    <SelectValue placeholder="Pilih SBU" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {dynamicTrenSbu.map((ts) => (
+                      <SelectItem key={ts.key} value={ts.key} className="text-xs">
+                        {ts.label} ({ts.jumlah} Laporan)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <p className="text-4xl font-bold tracking-tight text-primary">
+                {selectedSbuSummary?.jumlah ?? 0}
+              </p>
+              <p className="text-sm text-muted-foreground">total laporan pelanggaran</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                (
+                {totalViolationsCount > 0
+                  ? Math.round(((selectedSbuSummary?.jumlah ?? 0) / totalViolationsCount) * 100)
+                  : 0}
+                % dari total seluruh SBU)
+              </p>
+            </CardContent>
+          </>
+        )}
       </Card>
 
-      {/* 3 Kotak Monitoring Bulanan */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-3 items-stretch">
+      {/* 4 Kotak Monitoring Bulanan (2 Kolom Lebar per Baris) */}
+      <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-2 items-stretch">
         {/* Top 5 Mitra Terbaik Bulan Terpilih */}
         <Card className="dashboard-enter flex flex-col h-full" style={{ animationDelay: "760ms" }}>
           <CardHeader className="h-[100px] flex flex-col justify-between">
             <div className="flex items-center justify-between gap-2 h-6">
               <CardTitle>Top 5 Mitra Terbaik</CardTitle>
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary shrink-0">
                 {selectedTrend.bulan}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground truncate">Pilih Evaluasi Bulan:</span>
+              <span className="text-xs text-muted-foreground">Pilih Evaluasi Bulan:</span>
               <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
                 <SelectTrigger className="w-[130px] h-7 text-xs font-medium bg-background border-border">
                   <Calendar className="mr-1.5 size-3.5 text-primary shrink-0" />
@@ -590,7 +907,16 @@ function Dashboard() {
                   return (
                     <div
                       key={m.nama}
-                      className="rounded-lg border border-border p-3 transition-colors hover:bg-muted/40 h-[104px] flex flex-col justify-between"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedMitraDetail(m)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedMitraDetail(m);
+                        }
+                      }}
+                      className="rounded-lg border border-border p-3 transition-all hover:bg-muted/50 hover:border-primary/40 cursor-pointer h-[104px] flex flex-col justify-between"
                     >
                       <div className="flex items-center gap-2">
                         <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
@@ -600,7 +926,7 @@ function Dashboard() {
                         <StatusPill tone={isClean ? "success" : m.skor < 70 ? "warning" : "critical"}>
                           {isClean ? "Bersih · 0 Poin" : `${m.skor} Poin`}
                         </StatusPill>
-                        <span className="w-12 shrink-0 text-right text-xs font-bold font-mono">
+                        <span className="w-16 shrink-0 text-right text-xs font-bold font-mono">
                           {m.skor} Pts
                         </span>
                       </div>
@@ -609,8 +935,8 @@ function Dashboard() {
                         className={isClean ? "[&>div]:bg-success" : m.skor < 70 ? "[&>div]:bg-warning" : "[&>div]:bg-critical"}
                       />
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="truncate max-w-[140px]">{m.kontrak || "Mitra Aktif"}</span>
-                        <span className="shrink-0">{m.pelanggaranAktif ?? 0} pelanggaran aktif</span>
+                        <span className="truncate">{m.kontrak || "Mitra Aktif"}</span>
+                        <span className="shrink-0 font-medium">{m.pelanggaranAktif ?? 0} pelanggaran aktif</span>
                       </div>
                     </div>
                   );
@@ -635,12 +961,12 @@ function Dashboard() {
           <CardHeader className="h-[100px] flex flex-col justify-between">
             <div className="flex items-center justify-between gap-2 h-6">
               <CardTitle>Petugas Mitra Terbaik</CardTitle>
-              <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
                 {selectedTrend.bulan}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground truncate">Pilih Evaluasi Bulan:</span>
+              <span className="text-xs text-muted-foreground">Pilih Evaluasi Bulan:</span>
               <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
                 <SelectTrigger className="w-[130px] h-7 text-xs font-medium bg-background border-border">
                   <Calendar className="mr-1.5 size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -662,7 +988,16 @@ function Dashboard() {
                 dynamicPetugasTerbaik.map((p, i) => (
                   <div
                     key={`${p.nama}-${p.mitra}`}
-                    className="rounded-lg border border-border p-3 transition-colors hover:bg-muted/40 h-[104px] flex flex-col justify-between"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedPetugasDetail(p)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedPetugasDetail(p);
+                      }
+                    }}
+                    className="rounded-lg border border-border p-3 transition-all hover:bg-muted/50 hover:border-emerald-500/40 cursor-pointer h-[104px] flex flex-col justify-between"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
@@ -705,17 +1040,105 @@ function Dashboard() {
           </CardFooter>
         </Card>
 
+        {/* Petugas Perlu Pembinaan (Pelanggaran Terbanyak) */}
+        <Card className="dashboard-enter flex flex-col h-full" style={{ animationDelay: "835ms" }}>
+          <CardHeader className="h-[100px] flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-2 h-6">
+              <CardTitle>Petugas Perlu Pembinaan</CardTitle>
+              <span className="rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-bold text-rose-600 dark:text-rose-400 shrink-0">
+                {selectedTrend.bulan}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">Pilih Evaluasi Bulan:</span>
+              <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
+                <SelectTrigger className="w-[130px] h-7 text-xs font-medium bg-background border-border">
+                  <Calendar className="mr-1.5 size-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <SelectValue placeholder="Bulan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {dynamicTrenBulanan.map((tb) => (
+                    <SelectItem key={tb.bulan} value={tb.bulan} className="text-xs">
+                      Bulan {tb.bulan}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col flex-1 p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[460px]">
+              {dynamicPetugasTerburuk.length > 0 ? (
+                dynamicPetugasTerburuk.map((p, i) => (
+                  <div
+                    key={`${p.nama}-${p.mitra}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedPetugasTerburukDetail(p)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedPetugasTerburukDetail(p);
+                      }
+                    }}
+                    className="rounded-lg border border-border p-3 transition-all hover:bg-muted/50 hover:border-rose-500/40 cursor-pointer h-[104px] flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400">
+                          {i + 1}
+                        </span>
+                        <p className="text-sm font-bold text-foreground truncate">{p.nama}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <StatusPill tone="critical">{p.totalViolations} Pelanggaran</StatusPill>
+                        <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
+                          {p.totalPoin} Pts
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      Mitra: <span className="font-semibold text-foreground">{p.mitra}</span>
+                    </p>
+                    <p className="flex items-center justify-between text-xs text-muted-foreground truncate">
+                      <span className="truncate">
+                        Sering: <strong className="text-rose-600 dark:text-rose-400">{p.dominantJenis}</strong>
+                      </span>
+                      <span className="text-rose-600 dark:text-rose-400 font-medium shrink-0 ml-2">
+                        ⚠️ Perlu Pembinaan
+                      </span>
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  <CheckCircle2 className="size-6 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
+                  <p className="font-semibold text-foreground">Tidak Ada Petugas Melanggar</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Seluruh petugas mitra di bulan {selectedTrend.bulan} berstatus nihil pelanggaran / 100% patuh.
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter className="pt-2 p-4 sm:p-6 sm:pt-2">
+            <Button asChild variant="outline" className="w-full h-10">
+              <Link to="/pelanggaran">Lihat evaluasi kepatuhan petugas</Link>
+            </Button>
+          </CardFooter>
+        </Card>
+
         {/* Pelanggaran Terbaru Bulan Terpilih */}
         <Card className="dashboard-enter flex flex-col h-full" style={{ animationDelay: "860ms" }}>
           <CardHeader className="h-[100px] flex flex-col justify-between">
             <div className="flex items-center justify-between gap-2 h-6">
               <CardTitle>Pelanggaran Bulan {selectedTrend.bulan}</CardTitle>
-              <span className="rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-bold text-rose-600 dark:text-rose-400">
+              <span className="rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-bold text-rose-600 dark:text-rose-400 shrink-0">
                 {selectedTrend.bulan}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground truncate">Pilih Evaluasi Bulan:</span>
+              <span className="text-xs text-muted-foreground">Pilih Evaluasi Bulan:</span>
               <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
                 <SelectTrigger className="w-[130px] h-7 text-xs font-medium bg-background border-border">
                   <Calendar className="mr-1.5 size-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
@@ -737,7 +1160,16 @@ function Dashboard() {
                 monthlyViolations.map((v) => (
                   <div
                     key={v.id}
-                    className="rounded-lg border border-border p-3 transition-colors hover:bg-muted/40 h-[104px] flex flex-col justify-between"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedViolationDetail(v)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedViolationDetail(v);
+                      }
+                    }}
+                    className="rounded-lg border border-border p-3 transition-all hover:bg-muted/50 hover:border-rose-500/40 cursor-pointer h-[104px] flex flex-col justify-between"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-bold text-foreground truncate min-w-0">{v.jenis}</p>
@@ -774,10 +1206,471 @@ function Dashboard() {
         </Card>
       </div>
 
+      {/* Pop-up Detail Pelanggaran (Kotak Ketiga) */}
+      <Dialog
+        open={Boolean(selectedViolationDetail)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedViolationDetail(null);
+        }}
+      >
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          {selectedViolationDetail && (
+            <>
+              <DialogHeader>
+                <div className="flex flex-wrap items-center gap-2 pr-6">
+                  <span className="font-mono text-xs font-bold rounded bg-secondary px-2 py-0.5 text-primary">
+                    {selectedViolationDetail.id}
+                  </span>
+                  <StatusPill tone={severityTone(selectedViolationDetail.severity)}>
+                    {selectedViolationDetail.severity}
+                  </StatusPill>
+                  <StatusPill tone={statusTone(selectedViolationDetail.status)}>
+                    {selectedViolationDetail.status}
+                  </StatusPill>
+                  <span className="ml-auto font-mono text-xs font-semibold text-rose-600 dark:text-rose-400">
+                    {selectedViolationDetail.poin} Poin Sanksi
+                  </span>
+                </div>
+                <DialogTitle className="mt-2 text-base leading-snug">
+                  {selectedViolationDetail.jenis}
+                </DialogTitle>
+                <DialogDescription className="flex items-center gap-1.5 text-xs">
+                  <MapPin className="size-3.5 shrink-0 text-primary" />
+                  {selectedViolationDetail.lokasi} · Bulan Evaluasi {selectedTrend.bulan}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
+                <PopupDetailRow
+                  label="ID PA ICRM"
+                  value={selectedViolationDetail.idPa ?? "Belum dicatat"}
+                  mono
+                />
+                <PopupDetailRow
+                  label="SBU Operasional"
+                  value={selectedViolationDetail.sbu ?? selectedViolationDetail.lokasi}
+                />
+                {selectedViolationDetail.kp && (
+                  <PopupDetailRow
+                    label="Kantor Perwakilan (KP)"
+                    value={selectedViolationDetail.kp}
+                  />
+                )}
+                <PopupDetailRow label="Nama Mitra" value={selectedViolationDetail.mitra} />
+                <PopupDetailRow label="Petugas Mitra" value={selectedViolationDetail.petugas} />
+                <PopupDetailRow
+                  label="Petugas QC SBU"
+                  value={selectedViolationDetail.petugasQc || "Belum dicatat"}
+                />
+                {selectedViolationDetail.petugasMonitoringPusat && (
+                  <PopupDetailRow
+                    label="Petugas Monitoring Pusat"
+                    value={selectedViolationDetail.petugasMonitoringPusat}
+                  />
+                )}
+                {selectedViolationDetail.tanggalCek && (
+                  <PopupDetailRow
+                    label="Tanggal Cek / Inspeksi"
+                    value={selectedViolationDetail.tanggalCek}
+                  />
+                )}
+                {selectedViolationDetail.tanggalAktivasi && (
+                  <PopupDetailRow
+                    label="Tanggal Aktivasi"
+                    value={selectedViolationDetail.tanggalAktivasi}
+                  />
+                )}
+                {selectedViolationDetail.tanggalPermohonan && (
+                  <PopupDetailRow
+                    label="Tanggal Permohonan"
+                    value={selectedViolationDetail.tanggalPermohonan}
+                  />
+                )}
+                {selectedViolationDetail.idFat && (
+                  <PopupDetailRow label="ID FAT" value={selectedViolationDetail.idFat} mono />
+                )}
+                {selectedViolationDetail.dwGudang && (
+                  <PopupDetailRow label="DW Gudang" value={selectedViolationDetail.dwGudang} />
+                )}
+                {selectedViolationDetail.lokasiFatPelanggan && (
+                  <PopupDetailRow
+                    label="Lokasi FAT - Pelanggan"
+                    value={selectedViolationDetail.lokasiFatPelanggan}
+                  />
+                )}
+                <PopupDetailRow
+                  label="Kategori / Poin Sanksi"
+                  value={`${selectedViolationDetail.severity} · ${selectedViolationDetail.poin} Poin`}
+                />
+                <PopupDetailRow
+                  label="Deadline Klarifikasi"
+                  value={selectedViolationDetail.deadline}
+                />
+              </div>
+
+              <div className="rounded-lg border border-border p-3 text-sm">
+                <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase flex items-center gap-1.5">
+                  <FileText className="size-3.5 text-primary" />
+                  Catatan Temuan QC
+                </p>
+                <p className="mt-1.5 text-foreground leading-relaxed">
+                  {selectedViolationDetail.catatan || "Tidak ada catatan tambahan."}
+                </p>
+              </div>
+
+              {selectedViolationDetail.checklistResults &&
+                Object.keys(selectedViolationDetail.checklistResults).length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
+                      Rincian Hasil Checklist QC (
+                      {Object.keys(selectedViolationDetail.checklistResults).length} Parameter)
+                    </p>
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-2.5 space-y-1.5 text-xs bg-muted/20">
+                      {Object.entries(selectedViolationDetail.checklistResults).map(
+                        ([item, res]) => {
+                          const isNok =
+                            String(res).toLowerCase() === "nok" ||
+                            String(res).toLowerCase() === "tidak";
+                          return (
+                            <div
+                              key={item}
+                              className="flex items-center justify-between gap-2 py-1 border-b border-border/40 last:border-0"
+                            >
+                              <span className="text-muted-foreground">{item}</span>
+                              <span
+                                className={`font-mono font-semibold px-2 py-0.5 rounded text-[11px] shrink-0 ${
+                                  isNok
+                                    ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                }`}
+                              >
+                                {res || "—"}
+                              </span>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button variant="outline" onClick={() => setSelectedViolationDetail(null)}>
+                  Tutup
+                </Button>
+                <Button asChild>
+                  <Link to="/pelanggaran">Buka di Halaman Pelanggaran</Link>
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pop-up Detail Mitra Terbaik (Kotak Pertama) */}
+      <Dialog
+        open={Boolean(selectedMitraDetail)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedMitraDetail(null);
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {selectedMitraDetail && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-2 pr-6">
+                  <Building2 className="size-4 text-primary" />
+                  <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+                    Detail Evaluasi Mitra · Bulan {selectedTrend.bulan}
+                  </span>
+                </div>
+                <DialogTitle className="mt-1 text-lg">{selectedMitraDetail.nama}</DialogTitle>
+                <DialogDescription>{selectedMitraDetail.kontrak || "Mitra Aktif"}</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
+                <PopupDetailRow label="Nama Mitra" value={selectedMitraDetail.nama} />
+                <PopupDetailRow
+                  label="Nomor / Status Kontrak"
+                  value={selectedMitraDetail.kontrak || "Mitra Aktif"}
+                />
+                <PopupDetailRow label="Bulan Evaluasi" value={`Bulan ${selectedTrend.bulan}`} />
+                <PopupDetailRow
+                  label="Total Poin Sanksi Bulan Ini"
+                  value={`${selectedMitraDetail.skor} Poin`}
+                  mono
+                />
+                <PopupDetailRow
+                  label="Pelanggaran Aktif Bulan Ini"
+                  value={`${selectedMitraDetail.pelanggaranAktif} Tiket`}
+                />
+                <PopupDetailRow
+                  label="Total Tiket Inspeksi QC Bulan Ini"
+                  value={`${selectedMitraTickets.length} Data QC`}
+                />
+              </div>
+
+              {selectedMitraTickets.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
+                    Daftar Inspeksi &amp; Tiket Bulan {selectedTrend.bulan} ({selectedMitraTickets.length})
+                  </p>
+                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                    {selectedMitraTickets.map((t) => (
+                      <div
+                        key={t.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          setSelectedMitraDetail(null);
+                          setSelectedViolationDetail(t);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedMitraDetail(null);
+                            setSelectedViolationDetail(t);
+                          }
+                        }}
+                        className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-primary/40 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-foreground truncate">{t.jenis}</span>
+                          <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                        </div>
+                        <p className="mt-1 text-muted-foreground">
+                          ID PA: <span className="font-mono text-foreground">{t.idPa ?? "—"}</span> · Petugas:{" "}
+                          <span className="text-foreground">{t.petugas}</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button variant="outline" onClick={() => setSelectedMitraDetail(null)}>
+                  Tutup
+                </Button>
+                <Button asChild>
+                  <Link to="/mitra">Lihat Scorecard Mitra</Link>
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pop-up Detail Petugas Mitra Terbaik (Kotak Kedua) */}
+      <Dialog
+        open={Boolean(selectedPetugasDetail)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPetugasDetail(null);
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {selectedPetugasDetail && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-2 pr-6">
+                  <User className="size-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                    Detail Petugas Terbaik · Bulan {selectedTrend.bulan}
+                  </span>
+                </div>
+                <DialogTitle className="mt-1 text-lg">{selectedPetugasDetail.nama}</DialogTitle>
+                <DialogDescription>Mitra: {selectedPetugasDetail.mitra}</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
+                <PopupDetailRow label="Nama Petugas Mitra" value={selectedPetugasDetail.nama} />
+                <PopupDetailRow label="Perusahaan Mitra" value={selectedPetugasDetail.mitra} />
+                <PopupDetailRow label="Bulan Evaluasi" value={`Bulan ${selectedTrend.bulan}`} />
+                <PopupDetailRow label="Status Kepatuhan QC" value="Nihil Pelanggaran (100% Patuh)" />
+                <PopupDetailRow label="Poin Sanksi Bulan Ini" value="0 Poin" mono />
+                <PopupDetailRow
+                  label="Jumlah Inspeksi QC Bulan Ini"
+                  value={`${selectedPetugasDetail.totalInspeksi} Pekerjaan`}
+                />
+              </div>
+
+              {selectedPetugasTickets.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
+                    Daftar Pekerjaan / Inspeksi QC Bulan {selectedTrend.bulan} (
+                    {selectedPetugasTickets.length})
+                  </p>
+                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                    {selectedPetugasTickets.map((t) => (
+                      <div
+                        key={t.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          setSelectedPetugasDetail(null);
+                          setSelectedViolationDetail(t);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedPetugasDetail(null);
+                            setSelectedViolationDetail(t);
+                          }
+                        }}
+                        className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-emerald-500/40 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono font-semibold text-foreground">
+                            ID PA: {t.idPa ?? t.id}
+                          </span>
+                          <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                        </div>
+                        <p className="mt-1 text-muted-foreground">
+                          SBU: <span className="text-foreground">{t.sbu ?? t.lokasi}</span>
+                          {t.tanggalCek ? ` · Tgl Cek: ${t.tanggalCek}` : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button variant="outline" onClick={() => setSelectedPetugasDetail(null)}>
+                  Tutup
+                </Button>
+                <Button asChild>
+                  <Link to="/mitra">Lihat Daftar Petugas Mitra</Link>
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pop-up Detail Petugas Pelanggaran Terbanyak / Perlu Pembinaan */}
+      <Dialog
+        open={Boolean(selectedPetugasTerburukDetail)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPetugasTerburukDetail(null);
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          {selectedPetugasTerburukDetail && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-2 pr-6">
+                  <UserX className="size-4 text-rose-600 dark:text-rose-400" />
+                  <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+                    Evaluasi Petugas Perlu Pembinaan · Bulan {selectedTrend.bulan}
+                  </span>
+                </div>
+                <DialogTitle className="mt-1 text-lg">{selectedPetugasTerburukDetail.nama}</DialogTitle>
+                <DialogDescription>Perusahaan Mitra: {selectedPetugasTerburukDetail.mitra}</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
+                <PopupDetailRow label="Nama Petugas Lapangan" value={selectedPetugasTerburukDetail.nama} />
+                <PopupDetailRow label="Perusahaan Mitra" value={selectedPetugasTerburukDetail.mitra} />
+                <PopupDetailRow label="Bulan Evaluasi" value={`Bulan ${selectedTrend.bulan}`} />
+                <PopupDetailRow
+                  label="Total Pelanggaran Bulan Ini"
+                  value={`${selectedPetugasTerburukDetail.totalViolations} Kasus`}
+                  mono
+                />
+                <PopupDetailRow
+                  label="Total Poin Penalti Sanksi"
+                  value={`${selectedPetugasTerburukDetail.totalPoin} Poin`}
+                  mono
+                />
+                <PopupDetailRow
+                  label="Pelanggaran Belum Selesai (Open)"
+                  value={`${selectedPetugasTerburukDetail.openCount} Kasus`}
+                />
+                <PopupDetailRow
+                  label="Temuan Kesalahan Paling Sering"
+                  value={selectedPetugasTerburukDetail.dominantJenis}
+                />
+              </div>
+
+              {selectedPetugasTerburukDetail.tickets.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
+                    Daftar Pelanggaran Petugas Bulan {selectedTrend.bulan} ({selectedPetugasTerburukDetail.tickets.length})
+                  </p>
+                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                    {selectedPetugasTerburukDetail.tickets.map((t) => (
+                      <div
+                        key={t.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          setSelectedPetugasTerburukDetail(null);
+                          setSelectedViolationDetail(t);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedPetugasTerburukDetail(null);
+                            setSelectedViolationDetail(t);
+                          }
+                        }}
+                        className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-rose-500/40 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-foreground truncate">{t.jenis}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <StatusPill tone={severityTone(t.severity)}>{t.severity}</StatusPill>
+                            <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-muted-foreground">
+                          ID PA: <span className="font-mono text-foreground">{t.idPa ?? t.id}</span> · Poin:{" "}
+                          <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{t.poin} Pts</span>
+                          {t.tanggalCek ? ` · Tgl Cek: ${t.tanggalCek}` : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button variant="outline" onClick={() => setSelectedPetugasTerburukDetail(null)}>
+                  Tutup
+                </Button>
+                <Button asChild>
+                  <Link to="/pelanggaran">Lihat Semua di Halaman Pelanggaran</Link>
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Bagian Pivot Table Otomatis Dashboard */}
       <div className="mt-8 dashboard-enter" style={{ animationDelay: "920ms" }}>
         <PivotTableView violations={allViolations} />
       </div>
     </AppShell>
+  );
+}
+
+function PopupDetailRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-1.5 last:border-0 last:pb-0">
+      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
+      <span className={`text-right text-xs font-semibold text-foreground ${mono ? "font-mono" : ""}`}>
+        {value}
+      </span>
+    </div>
   );
 }

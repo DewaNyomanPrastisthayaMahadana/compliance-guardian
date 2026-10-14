@@ -21,8 +21,9 @@ import {
   getCustomViolationsFromStorage,
   getCustomMitraListFromStorage,
   getDeletedViolationIds,
+  hydrateCustomDataFromIndexedDB,
 } from "@/lib/iconguard-data";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export const Route = createFileRoute("/mitra")({
   beforeLoad: () => requireRouteAccess("/mitra"),
@@ -47,6 +48,14 @@ export const Route = createFileRoute("/mitra")({
 
 function MitraPage() {
   const { organization, isMitra, mitraList: loadedMitraList, violations: loadedViolations } = Route.useLoaderData();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const onHydrated = () => setRefreshTrigger((prev) => prev + 1);
+    window.addEventListener("iconguard-data-hydrated", onHydrated);
+    void hydrateCustomDataFromIndexedDB();
+    return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
+  }, []);
 
   const allMitraList = useMemo(() => {
     const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
@@ -70,7 +79,7 @@ function MitraPage() {
     return isMitra && organization
       ? list.filter((m) => m.nama.trim().toLowerCase() === organization.trim().toLowerCase())
       : list;
-  }, [loadedMitraList, isMitra, organization]);
+  }, [loadedMitraList, isMitra, organization, refreshTrigger]);
 
   const allViolations = useMemo(() => {
     const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
@@ -91,7 +100,7 @@ function MitraPage() {
     return isMitra && organization
       ? filtered.filter((v) => v.mitra.trim().toLowerCase() === organization.trim().toLowerCase())
       : filtered;
-  }, [loadedViolations, isMitra, organization]);
+  }, [loadedViolations, isMitra, organization, refreshTrigger]);
 
   return (
     <AppShell>

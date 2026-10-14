@@ -342,6 +342,18 @@ export function addViolationRecord(data: {
   severity: Severity;
   catatan: string;
   bukti?: string[];
+  tanggalCek?: string | undefined;
+  tanggalAktivasi?: string | undefined;
+  tanggalPermohonan?: string | undefined;
+  petugasQc?: string | undefined;
+  petugasMonitoringPusat?: string | undefined;
+  kp?: string | undefined;
+  idFat?: string | undefined;
+  checklistResults?: Record<string, string> | undefined;
+  qcK3?: string | undefined;
+  qcInstalasi?: string | undefined;
+  poin?: number | undefined;
+  status?: Status | undefined;
 }): Violation {
   const existing = violations.find(
     (v) =>
@@ -382,24 +394,35 @@ export function addViolationRecord(data: {
     "Nov",
     "Des",
   ];
-  const createdAt = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  const createdAt = data.tanggalCek || `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
   const deadline = `${deadlineDate.getDate()} ${months[deadlineDate.getMonth()]} ${deadlineDate.getFullYear()} · 17:00`;
-  const poin = poinBySeverity[data.severity] ?? 15;
+  const poin = data.poin !== undefined ? data.poin : (poinBySeverity[data.severity] ?? 15);
 
   const newViolation: Violation = {
     id: newId,
     idPa: data.idPa,
+    sbu: data.sbu,
     mitra: data.mitra,
     petugas: data.petugas,
+    petugasQc: data.petugasQc || undefined,
+    petugasMonitoringPusat: data.petugasMonitoringPusat || undefined,
+    tanggalCek: data.tanggalCek || undefined,
+    tanggalAktivasi: data.tanggalAktivasi || undefined,
+    tanggalPermohonan: data.tanggalPermohonan || undefined,
+    kp: data.kp || undefined,
+    idFat: data.idFat || undefined,
     jenis: data.jenis,
     severity: data.severity,
-    status: "Open",
+    status: data.status || "Open",
     lokasi,
     createdAt,
     deadline,
     poin,
     catatan: data.catatan || `Checklist ${data.jenis} belum terpenuhi.`,
     bukti: data.bukti ?? [],
+    checklistResults: data.checklistResults || undefined,
+    qcK3: data.qcK3 || undefined,
+    qcInstalasi: data.qcInstalasi || undefined,
   };
 
   violations.unshift(newViolation);
@@ -483,19 +506,22 @@ export function removeViolationRecord(id: string): boolean {
 
   if (typeof window !== "undefined") {
     try {
-      const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
-      const custom: Violation[] = raw ? JSON.parse(raw) : [];
-      localStorage.setItem(
-        CUSTOM_VIOLATIONS_KEY,
-        JSON.stringify(custom.filter((item) => item.id !== id)),
-      );
       localStorage.setItem(
         DELETED_VIOLATIONS_KEY,
         JSON.stringify([...new Set([...getDeletedViolationIds(), id])]),
       );
+      const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
+      if (raw) {
+        const custom: Violation[] = JSON.parse(raw);
+        localStorage.setItem(
+          CUSTOM_VIOLATIONS_KEY,
+          JSON.stringify(custom.filter((item) => item.id !== id)),
+        );
+      }
     } catch {
       // The in-memory deletion still applies for the current session.
     }
+    void saveCustomDataToIndexedDB([...violations], [...mitraList]);
   }
   return Boolean(removed);
 }
@@ -539,21 +565,102 @@ export function getEvidencePhotos(v?: Violation): string[] {
 
 export const CUSTOM_VIOLATIONS_KEY = "iconguard_custom_violations";
 export const CUSTOM_MITRA_KEY = "iconguard_custom_mitra";
+const IDB_DATA_NAME = "iconguard-excel-store";
+const IDB_STORE_NAME = "datasets";
+
+function openExcelDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_DATA_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(IDB_STORE_NAME)) {
+        req.result.createObjectStore(IDB_STORE_NAME);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveCustomDataToIndexedDB(
+  newViolations: Violation[],
+  newMitra: Mitra[],
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const db = await openExcelDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE_NAME, "readwrite");
+      const store = tx.objectStore(IDB_STORE_NAME);
+      store.put(newViolations, "violations");
+      store.put(newMitra, "mitra");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // ignore
+  }
+}
+
+export async function hydrateCustomDataFromIndexedDB(): Promise<{
+  violations: Violation[];
+  mitraList: Mitra[];
+} | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const db = await openExcelDatabase();
+    const result = await new Promise<{ violations: Violation[]; mitraList: Mitra[] } | null>(
+      (resolve, reject) => {
+        const tx = db.transaction(IDB_STORE_NAME, "readonly");
+        const store = tx.objectStore(IDB_STORE_NAME);
+        const vReq = store.get("violations");
+        const mReq = store.get("mitra");
+        tx.oncomplete = () => {
+          const vList = Array.isArray(vReq.result) ? (vReq.result as Violation[]) : [];
+          const mList = Array.isArray(mReq.result) ? (mReq.result as Mitra[]) : [];
+          if (vList.length === 0 && mList.length === 0) {
+            resolve(null);
+          } else {
+            resolve({ violations: vList, mitraList: mList });
+          }
+        };
+        tx.onerror = () => reject(tx.error);
+      },
+    );
+    db.close();
+
+    if (result) {
+      const deletedIds = new Set(getDeletedViolationIds());
+      const activeViolations = result.violations.filter((v) => !deletedIds.has(v.id));
+      violations.length = 0;
+      violations.push(...activeViolations);
+
+      if (result.mitraList.length > 0) {
+        mitraList.length = 0;
+        mitraList.push(...result.mitraList);
+      }
+
+      window.dispatchEvent(new CustomEvent("iconguard-data-hydrated"));
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
 
 export function getCustomViolationsFromStorage(): Violation[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
-    if (!raw) return [];
+    if (!raw) return violations.length > 0 ? [...violations] : [];
     const list = JSON.parse(raw) as Violation[];
-    // Hapus data dummy lama yang memiliki jenis "Pemeriksaan Lapangan"
     const cleaned = list.filter((v) => v.jenis !== "Pemeriksaan Lapangan");
     if (cleaned.length !== list.length) {
       localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(cleaned));
     }
     return cleaned;
   } catch {
-    return [];
+    return violations.length > 0 ? [...violations] : [];
   }
 }
 
@@ -563,6 +670,14 @@ export function clearAllCustomDataFromStorage() {
     localStorage.removeItem(CUSTOM_VIOLATIONS_KEY);
     localStorage.removeItem(CUSTOM_MITRA_KEY);
     localStorage.removeItem("iconguard_override_all");
+    violations.length = 0;
+    mitraList.length = 0;
+    void openExcelDatabase().then((db) => {
+      const tx = db.transaction(IDB_STORE_NAME, "readwrite");
+      tx.objectStore(IDB_STORE_NAME).clear();
+      tx.oncomplete = () => db.close();
+    });
+    window.dispatchEvent(new CustomEvent("iconguard-data-hydrated"));
   } catch {
     // ignore
   }
@@ -581,9 +696,10 @@ export function getCustomMitraListFromStorage(): Mitra[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(CUSTOM_MITRA_KEY);
-    return raw ? (JSON.parse(raw) as Mitra[]) : [];
+    if (!raw) return mitraList.length > 0 ? [...mitraList] : [];
+    return JSON.parse(raw) as Mitra[];
   } catch {
-    return [];
+    return mitraList.length > 0 ? [...mitraList] : [];
   }
 }
 
@@ -597,7 +713,12 @@ function saveCustomViolationToStorage(item: Violation) {
     } else {
       list.unshift(item);
     }
-    localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(list));
+    try {
+      localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(list));
+    } catch {
+      // QuotaExceeded fallback to IndexedDB
+    }
+    void saveCustomDataToIndexedDB(list, mitraList);
   } catch {
     // ignore storage errors
   }
@@ -606,7 +727,8 @@ function saveCustomViolationToStorage(item: Violation) {
 export function restoreCustomViolationsFromStorage() {
   if (typeof window === "undefined") return;
   try {
-    const list = getCustomViolationsFromStorage();
+    const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
+    const list: Violation[] = raw ? JSON.parse(raw) : [];
     const deletedIds = new Set(getDeletedViolationIds());
     for (const item of [...list].reverse()) {
       if (deletedIds.has(item.id)) continue;
@@ -618,7 +740,8 @@ export function restoreCustomViolationsFromStorage() {
       }
     }
 
-    const savedMitra = getCustomMitraListFromStorage();
+    const rawMitra = localStorage.getItem(CUSTOM_MITRA_KEY);
+    const savedMitra: Mitra[] = rawMitra ? JSON.parse(rawMitra) : [];
     if (savedMitra.length > 0) {
       for (const m of savedMitra) {
         const idx = mitraList.findIndex((item) => item.nama.toLowerCase() === m.nama.toLowerCase());
@@ -632,6 +755,7 @@ export function restoreCustomViolationsFromStorage() {
   } catch {
     // ignore storage errors
   }
+  void hydrateCustomDataFromIndexedDB();
 }
 
 if (typeof window !== "undefined") {

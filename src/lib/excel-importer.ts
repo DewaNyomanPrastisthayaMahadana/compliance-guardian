@@ -3,6 +3,7 @@ import {
   violations,
   mitraList,
   poinBySeverity,
+  saveCustomDataToIndexedDB,
   type Violation,
   type Severity,
 } from "./iconguard-data";
@@ -621,16 +622,17 @@ export function processAndImportData(
     }
   });
 
-  // Simpan ke localStorage
+  // Simpan ke IndexedDB (kapasitas besar) dan localStorage
   if (typeof window !== "undefined") {
     try {
+      localStorage.setItem("iconguard_override_all", "true");
+      localStorage.setItem("iconguard_custom_mitra", JSON.stringify(mitraList));
       const STORAGE_KEY = "iconguard_custom_violations";
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newViolations));
-      localStorage.setItem("iconguard_custom_mitra", JSON.stringify(mitraList));
-      localStorage.setItem("iconguard_override_all", "true");
     } catch {
-      // ignore
+      // Jika localStorage penuh (>5MB), data tetap aman di IndexedDB dan memori
     }
+    void saveCustomDataToIndexedDB([...violations], [...mitraList]);
   }
 
   return {

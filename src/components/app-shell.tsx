@@ -51,12 +51,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    if (typeof window !== "undefined" && !window.sessionStorage.getItem("iconguard_session_started")) {
+      void authClient.signOut().finally(() => {
+        if (active) {
+          setCurrentUser(null);
+          setRoleReady(true);
+          void navigate({ to: "/login", replace: true });
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }
+
     void getCurrentAuthUser()
       .then((user) => {
         if (active) {
+          const savedBootId = typeof window !== "undefined" ? window.sessionStorage.getItem("iconguard_boot_id") : null;
+          if (!user || (savedBootId && user.bootId !== savedBootId)) {
+            if (typeof window !== "undefined") {
+              window.sessionStorage.removeItem("iconguard_session_started");
+              window.sessionStorage.removeItem("iconguard_boot_id");
+            }
+            void authClient.signOut().finally(() => {
+              if (active) {
+                setCurrentUser(null);
+                setRoleReady(true);
+                void navigate({ to: "/login", replace: true });
+              }
+            });
+            return;
+          }
+
           setCurrentUser(user);
           setRoleReady(true);
-          if (!user) void navigate({ to: "/login", replace: true });
           if (user && (user.appRole === "mitra" || user.appRole === "petugas-mitra")) {
             const organization = user.organization.trim().toLowerCase();
             const seenWarningIds = getSeenWarningIds(user.id);
@@ -91,6 +119,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const hasAccess = Boolean(appRole && canAccessPath(appRole, currentPath));
 
   const handleLogout = async () => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem("iconguard_session_started");
+      window.sessionStorage.removeItem("iconguard_boot_id");
+    }
     await authClient.signOut();
     setCurrentUser(null);
     void navigate({ to: "/login", replace: true });
