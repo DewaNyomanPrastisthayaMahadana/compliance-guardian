@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { deleteViolationReport, getPelanggaranData, requireRouteAccess } from "@/lib/auth-server";
 import { useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, MapPin, Plus, Search, Trash2, Table as TableIcon, LayoutList, Building2, CheckCircle2, Calendar } from "lucide-react";
+import { FileSpreadsheet, MapPin, Plus, Search, Trash2, Table as TableIcon, LayoutList, Building2, CheckCircle2, Calendar, Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { ExcelImportModal } from "@/components/excel-import-modal";
@@ -111,6 +111,7 @@ function PelanggaranPage() {
   const [q, setQ] = useState("");
   const [selectedSbu, setSelectedSbu] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [selectedMitra, setSelectedMitra] = useState<string>("SEMUA");
   const [selectedId, setSelectedId] = useState("");
   const [storedEvidence, setStoredEvidence] = useState<string[]>([]);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -196,6 +197,41 @@ function PelanggaranPage() {
     }));
   }, [visibleViolations, selectedSbu]);
 
+  // Daftar Mitra yang tersedia untuk SBU & Bulan terpilih
+  const availableMitraList = useMemo(() => {
+    const counts: Record<string, number> = {};
+
+    visibleViolations.forEach((v) => {
+      if (selectedSbu && selectedSbu !== "SEMUA" && getSbuKey(v) !== selectedSbu) return;
+      const m = getMonthKey(v.tanggalCek || v.createdAt);
+      if (selectedMonth && selectedMonth !== "SEMUA" && m !== selectedMonth) return;
+      const mName = (v.mitra || "").trim();
+      if (mName) {
+        counts[mName] = (counts[mName] || 0) + 1;
+      }
+    });
+
+    return Object.entries(counts)
+      .map(([nama, count]) => ({ nama, count }))
+      .sort((a, b) => b.count - a.count || a.nama.localeCompare(b.nama));
+  }, [visibleViolations, selectedSbu, selectedMonth]);
+
+  const availableMitraTotalCount = useMemo(() => {
+    return availableMitraList.reduce((acc, curr) => acc + curr.count, 0);
+  }, [availableMitraList]);
+
+  // Reset filter mitra ke SEMUA jika mitra yang dipilih sebelumnya tidak ada di SBU/Bulan saat ini
+  useEffect(() => {
+    if (selectedMitra && selectedMitra !== "SEMUA") {
+      const exists = availableMitraList.some(
+        (m) => m.nama.trim().toLowerCase() === selectedMitra.trim().toLowerCase(),
+      );
+      if (!exists) {
+        setSelectedMitra("SEMUA");
+      }
+    }
+  }, [availableMitraList, selectedMitra]);
+
   useEffect(() => {
     setDeletedIds(getDeletedViolationIds());
     const onHydrated = () => setRefreshTrigger((prev) => prev + 1);
@@ -219,14 +255,18 @@ function PelanggaranPage() {
         const matchesSbu = selectedSbu === "SEMUA" || getSbuKey(v) === selectedSbu;
         const vMonth = getMonthKey(v.tanggalCek || v.createdAt);
         const matchesMonth = selectedMonth === "SEMUA" || vMonth === selectedMonth;
+        const matchesMitra =
+          !selectedMitra ||
+          selectedMitra === "SEMUA" ||
+          v.mitra.trim().toLowerCase() === selectedMitra.trim().toLowerCase();
         const matchesTab = matches(v, filter);
         const matchesSearch = (v.mitra + v.petugas + v.jenis + v.id + (v.idPa ?? "") + (v.sbu ?? "") + (v.lokasi ?? ""))
           .toLowerCase()
           .includes(q.toLowerCase());
-        return matchesSbu && matchesMonth && matchesTab && matchesSearch;
+        return matchesSbu && matchesMonth && matchesMitra && matchesTab && matchesSearch;
       });
     },
-    [visibleViolations, selectedSbu, selectedMonth, filter, q],
+    [visibleViolations, selectedSbu, selectedMonth, selectedMitra, filter, q],
   );
 
   const activeSelectedId = list.some((v) => v.id === selectedId)
@@ -376,6 +416,26 @@ function PelanggaranPage() {
                 </Select>
               </div>
 
+              {/* Filter Pilih Mitra */}
+              <div className="flex items-center gap-2">
+                <Select value={selectedMitra} onValueChange={(val) => setSelectedMitra(val)}>
+                  <SelectTrigger className="w-auto min-w-[200px] max-w-[280px] h-9 px-3.5 text-xs font-semibold bg-background border-border gap-2">
+                    <Handshake className="mr-0.5 size-4 text-primary shrink-0" />
+                    <SelectValue placeholder="Pilih Mitra" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="SEMUA" className="text-xs font-semibold text-primary">
+                      🤝 Semua Mitra ({availableMitraTotalCount} Tiket)
+                    </SelectItem>
+                    {availableMitraList.map((m) => (
+                      <SelectItem key={m.nama} value={m.nama} className="text-xs">
+                        <span className="truncate max-w-[220px] inline-block align-bottom">{m.nama}</span> ({m.count} Tiket)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
                 <TabsList className="h-9 max-w-full flex-wrap justify-start">
                   {filters.map((f) => (
@@ -453,6 +513,8 @@ function PelanggaranPage() {
                       selectedSbu === "SEMUA" ? "Semua SBU" : `SBU ${selectedSbu}`
                     }${
                       selectedMonth === "SEMUA" ? "" : ` di bulan ${selectedMonth}`
+                    }${
+                      selectedMitra && selectedMitra !== "SEMUA" ? ` pada Mitra ${selectedMitra}` : ""
                     } pada kriteria filter ini.`}
                   </p>
                 </>
