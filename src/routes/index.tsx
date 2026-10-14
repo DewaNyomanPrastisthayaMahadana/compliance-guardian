@@ -159,34 +159,34 @@ function Bar3D(props: Bar3DProps) {
   // 2. Right face (side wall in shadow):
   const rightPath = `M ${x + width},${y} L ${x + width + depthX},${y - depthY} L ${x + width + depthX},${y + height - depthY} L ${x + width},${y + height} Z`;
 
-  // Colors based on state
+  // Colors harmonized with web background (#EAF5FE) and sidebar (#C2E2FC)
   let frontFill = "url(#bar3DFront)";
-  let topFill = "#7dd3fc";
-  let topStroke = "#38bdf8";
-  let rightFill = "#0369a1";
-  let rightStroke = "#0284c7";
-  let frontStroke = "#0284c7";
+  let topFill = "#C2E2FC"; // Harmonized with web sidebar background
+  let topStroke = "#A3D2F8";
+  let rightFill = "#4F9CE0"; // Soft medium blue shadow (avoids harsh dark navy)
+  let rightStroke = "#5DA6E5";
+  let frontStroke = "#68ADE8";
   let filter = "url(#bar3DShadow)";
   let opacity = 1;
 
   if (isSelected) {
     frontFill = "url(#bar3DFrontSelected)";
-    topFill = "#bfdbfe";
-    topStroke = "#93c5fd";
-    rightFill = "#1e40af";
-    rightStroke = "#1d4ed8";
-    frontStroke = "#3b82f6";
+    topFill = "#9DD0FA";
+    topStroke = "#72B7F2";
+    rightFill = "#1E72C8";
+    rightStroke = "#2B7FD4";
+    frontStroke = "#3388DC";
     filter = "url(#bar3DSelectedGlow)";
     opacity = 1;
   } else if (isDimmed) {
     frontFill = "url(#bar3DFrontMuted)";
-    topFill = "rgba(186, 230, 253, 0.4)";
-    topStroke = "transparent";
-    rightFill = "rgba(3, 105, 161, 0.25)";
-    rightStroke = "transparent";
-    frontStroke = "transparent";
+    topFill = "#EAF5FE"; // Harmonized with web page background
+    topStroke = "#D0E7FC";
+    rightFill = "#B5D9F8";
+    rightStroke = "#C5E2FA";
+    frontStroke = "#C5E2FA";
     filter = "none";
-    opacity = 0.55;
+    opacity = 0.7;
   }
 
   return (
@@ -874,34 +874,34 @@ function Dashboard() {
                 }}
               >
                 <defs>
-                  {/* Filter: Subtle drop shadow for 3D depth */}
+                  {/* Filter: Subtle soft blue shadow harmonized with white card */}
                   <filter id="bar3DShadow" x="-15%" y="-15%" width="130%" height="130%">
-                    <feDropShadow dx="1.5" dy="2.5" stdDeviation="2" floodColor="#0284c7" floodOpacity="0.25" />
+                    <feDropShadow dx="1" dy="2" stdDeviation="1.5" floodColor="#78BAF0" floodOpacity="0.22" />
                   </filter>
 
-                  {/* Filter: Electric blue glow for selected 3D bar */}
-                  <filter id="bar3DSelectedGlow" x="-25%" y="-25%" width="150%" height="150%">
-                    <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#38bdf8" floodOpacity="0.6" />
+                  {/* Filter: Soft blue highlight for selected bar */}
+                  <filter id="bar3DSelectedGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#55A2E5" floodOpacity="0.35" />
                   </filter>
 
-                  {/* Normal 3D Front Gradient */}
+                  {/* Normal 3D Front Gradient: Soft pastel sky-to-medium blue matching #EAF5FE & #C2E2FC */}
                   <linearGradient id="bar3DFront" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#38bdf8" />
-                    <stop offset="35%" stopColor="#0284c7" />
-                    <stop offset="100%" stopColor="#0369a1" />
+                    <stop offset="0%" stopColor="#A1D1F8" />
+                    <stop offset="50%" stopColor="#78BAF0" />
+                    <stop offset="100%" stopColor="#55A2E5" />
                   </linearGradient>
 
-                  {/* Selected 3D Front Gradient */}
+                  {/* Selected 3D Front Gradient: Richer accent blue */}
                   <linearGradient id="bar3DFrontSelected" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#93c5fd" />
-                    <stop offset="35%" stopColor="#3b82f6" />
-                    <stop offset="100%" stopColor="#1d4ed8" />
+                    <stop offset="0%" stopColor="#6DB3F2" />
+                    <stop offset="50%" stopColor="#4198E8" />
+                    <stop offset="100%" stopColor="#267FD8" />
                   </linearGradient>
 
-                  {/* Dimmed 3D Front Gradient */}
+                  {/* Dimmed 3D Front Gradient: Very light soft pastel matching #EAF5FE */}
                   <linearGradient id="bar3DFrontMuted" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.2" />
+                    <stop offset="0%" stopColor="#E1F0FD" />
+                    <stop offset="100%" stopColor="#C8E4FB" />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -934,7 +934,7 @@ function Dashboard() {
                         <text
                           y={16}
                           textAnchor="middle"
-                          fill={isSelected ? "#0284c7" : "var(--muted-foreground)"}
+                          fill={isSelected ? "#267FD8" : "var(--muted-foreground)"}
                           fontWeight={isSelected ? 700 : 400}
                           role="button"
                           tabIndex={0}
@@ -953,7 +953,7 @@ function Dashboard() {
                 />
                 <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip
-                  cursor={{ fill: "rgba(2, 132, 199, 0.08)" }}
+                  cursor={{ fill: "rgba(194, 226, 252, 0.45)" }}
                   formatter={(value: any, _name: any, item: any) => [
                     `${value} laporan`,
                     trendFilterType === "sbu" && item?.payload?.fullLabel
@@ -1011,7 +1011,7 @@ function Dashboard() {
                       fontSize: 12,
                     }}
                   />
-                  <Bar dataKey="jumlah" fill="var(--accent)" radius={[0, 6, 6, 0]} barSize={14} />
+                  <Bar dataKey="jumlah" fill="#78BAF0" radius={[0, 6, 6, 0]} barSize={14} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
