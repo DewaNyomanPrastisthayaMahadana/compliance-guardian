@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { getMitraScorecardData, requireRouteAccess } from "@/lib/auth-server";
-import { Download, Users, ChevronRight, CheckCircle2, ShieldAlert } from "lucide-react";
+import { Download, Users, ChevronRight, CheckCircle2, ShieldAlert, ChevronDown, Search } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -54,6 +55,25 @@ function MitraPage() {
   const { organization, isMitra, mitraList: loadedMitraList, violations: loadedViolations } = Route.useLoaderData();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [selectedMitraModal, setSelectedMitraModal] = useState<Mitra | null>(null);
+  const [expandedOfficers, setExpandedOfficers] = useState<Set<string>>(new Set());
+  const [officerSearch, setOfficerSearch] = useState("");
+
+  useEffect(() => {
+    setExpandedOfficers(new Set());
+    setOfficerSearch("");
+  }, [selectedMitraModal]);
+
+  const toggleOfficerExpand = (petugasName: string) => {
+    setExpandedOfficers((prev) => {
+      const next = new Set(prev);
+      if (next.has(petugasName)) {
+        next.delete(petugasName);
+      } else {
+        next.add(petugasName);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const onHydrated = () => setRefreshTrigger((prev) => prev + 1);
@@ -223,6 +243,12 @@ function MitraPage() {
     });
   }, [allViolations, selectedMitraModal]);
 
+  const filteredOfficerList = useMemo(() => {
+    if (!officerSearch.trim()) return officerList;
+    const q = officerSearch.trim().toLowerCase();
+    return officerList.filter((o) => o.petugas.toLowerCase().includes(q));
+  }, [officerList, officerSearch]);
+
   return (
     <AppShell>
       <div className="dashboard-enter">
@@ -312,7 +338,7 @@ function MitraPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           {selectedMitraModal && (
             <>
               <DialogHeader>
@@ -344,118 +370,147 @@ function MitraPage() {
                 </DialogDescription>
               </DialogHeader>
 
-              {/* Rangkuman KPI Mitra */}
-              <div className="grid grid-cols-3 gap-2.5 my-1 text-xs">
-                <div className="p-3 rounded-lg border border-border bg-muted/30">
+              {/* Rangkuman KPI Mitra (Dibuat ringkas) */}
+              <div className="grid grid-cols-3 gap-2 my-1 text-xs">
+                <div className="py-2 px-3 rounded-lg border border-border bg-muted/30">
                   <span className="text-[11px] text-muted-foreground block">Akumulasi Penalti</span>
-                  <p className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">
+                  <p className="text-base font-bold text-rose-600 dark:text-rose-400 mt-0.5 leading-tight">
                     {officerList.reduce((acc, o) => acc + o.totalPoin, 0)}{" "}
                     <span className="text-xs font-normal text-muted-foreground">Pts</span>
                   </p>
                 </div>
-                <div className="p-3 rounded-lg border border-border bg-muted/30">
+                <div className="py-2 px-3 rounded-lg border border-border bg-muted/30">
                   <span className="text-[11px] text-muted-foreground block">Kasus Pelanggaran</span>
-                  <p className="text-lg font-bold text-foreground mt-0.5">
+                  <p className="text-base font-bold text-foreground mt-0.5 leading-tight">
                     {officerList.reduce((acc, o) => acc + o.totalPelanggaran, 0)}{" "}
                     <span className="text-xs font-normal text-muted-foreground">kasus</span>
                   </p>
                 </div>
-                <div className="p-3 rounded-lg border border-border bg-muted/30">
+                <div className="py-2 px-3 rounded-lg border border-border bg-muted/30">
                   <span className="text-[11px] text-muted-foreground block">Petugas Terlibat</span>
-                  <p className="text-lg font-bold text-primary mt-0.5">
+                  <p className="text-base font-bold text-primary mt-0.5 leading-tight">
                     {officerList.length}{" "}
                     <span className="text-xs font-normal text-muted-foreground">orang</span>
                   </p>
                 </div>
               </div>
 
-              {/* Header List Petugas */}
-              <div className="flex items-center justify-between pt-2">
+              {/* Header List Petugas & Pencarian Cepat */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 pb-0.5">
                 <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground flex items-center gap-1.5">
                   <Users className="size-3.5 text-primary" />
                   Daftar Petugas Pelanggar (Poin Tertinggi ke Terendah)
                 </p>
-                <span className="text-[11px] text-muted-foreground font-medium">
-                  {officerList.length} Personil
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    {filteredOfficerList.length} dari {officerList.length} Personil
+                  </span>
+                  {officerList.length > 6 && (
+                    <div className="relative w-36">
+                      <Search className="size-3 text-muted-foreground absolute left-2 top-2" />
+                      <Input
+                        placeholder="Cari nama..."
+                        value={officerSearch}
+                        onChange={(e) => setOfficerSearch(e.target.value)}
+                        className="h-7 text-xs pl-6 pr-2"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* List Petugas */}
-              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-                {officerList.length > 0 ? (
-                  officerList.map((off, idx) => (
-                    <div
-                      key={off.petugas}
-                      className="rounded-xl border border-border bg-card p-3.5 text-xs transition-all hover:border-primary/40 hover:bg-muted/20"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <span
-                            className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                              idx === 0
-                                ? "bg-rose-500 text-white"
-                                : idx === 1
-                                ? "bg-amber-500 text-white"
-                                : idx === 2
-                                ? "bg-orange-500 text-white"
-                                : "bg-muted text-muted-foreground"
-                            }`}
+              {/* List Petugas: Grid 2 Kolom Kompak agar Muat Banyak Tanpa Scroll */}
+              <div className="max-h-[440px] overflow-y-auto pr-1">
+                {filteredOfficerList.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {filteredOfficerList.map((off, idx) => {
+                      const isExpanded = expandedOfficers.has(off.petugas);
+                      return (
+                        <div
+                          key={off.petugas}
+                          className="rounded-xl border border-border bg-card p-2.5 text-xs transition-all hover:border-primary/40 hover:bg-muted/15 h-fit"
+                        >
+                          <div
+                            className="flex items-center justify-between gap-2 cursor-pointer select-none"
+                            onClick={() => toggleOfficerExpand(off.petugas)}
                           >
-                            {idx + 1}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="font-bold text-foreground text-sm truncate break-all">
-                              {off.petugas}
-                            </p>
-                            <p className="text-muted-foreground mt-0.5 text-xs flex flex-wrap items-center gap-2">
-                              <span>
-                                {off.totalPelanggaran} Kasus Pelanggaran
-                                {off.pelanggaranAktif > 0 ? ` (${off.pelanggaranAktif} Aktif)` : ""}
-                              </span>
-                              <span>•</span>
-                              <span className="truncate">
-                                Sering: <strong className="text-rose-600 dark:text-rose-400">{off.dominantJenis}</strong>
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="shrink-0 text-right">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full font-mono text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                            {off.totalPoin} Pts
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Riwayat Tiket Singkat Petugas */}
-                      {off.tickets.length > 0 && (
-                        <div className="mt-2.5 pt-2.5 border-t border-border/60">
-                          <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">
-                            Rincian Tiket Pelanggaran ({off.tickets.length}):
-                          </p>
-                          <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                            {off.tickets.map((t) => (
-                              <div
-                                key={t.id}
-                                className="flex items-center justify-between gap-2 p-1.5 rounded bg-muted/40 text-[11px]"
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                                  idx === 0
+                                    ? "bg-rose-500 text-white shadow-xs"
+                                    : idx === 1
+                                    ? "bg-amber-500 text-white shadow-xs"
+                                    : idx === 2
+                                    ? "bg-orange-500 text-white shadow-xs"
+                                    : "bg-muted text-muted-foreground font-medium"
+                                }`}
                               >
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className="font-mono text-muted-foreground shrink-0">{t.id}</span>
-                                  <span className="truncate font-medium text-foreground">{t.jenis}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">
-                                    {t.poin} Pts
+                                {idx + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="font-bold text-foreground text-xs truncate" title={off.petugas}>
+                                  {off.petugas}
+                                </p>
+                                <p className="text-muted-foreground text-[10px] truncate flex items-center gap-1.5 mt-0.5">
+                                  <span>{off.totalPelanggaran} Kasus ({off.pelanggaranAktif} Aktif)</span>
+                                  <span>•</span>
+                                  <span className="truncate">
+                                    Sering: <strong className="text-rose-600 dark:text-rose-400 font-medium">{off.dominantJenis}</strong>
                                   </span>
-                                  <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
-                                </div>
+                                </p>
                               </div>
-                            ))}
+                            </div>
+
+                            <div className="shrink-0 flex items-center gap-1.5">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full font-mono text-[11px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                {off.totalPoin} Pts
+                              </span>
+                              <span className="p-0.5 text-muted-foreground hover:text-foreground">
+                                <ChevronDown
+                                  className={`size-3.5 transition-transform duration-200 ${
+                                    isExpanded ? "rotate-180 text-primary" : ""
+                                  }`}
+                                />
+                              </span>
+                            </div>
                           </div>
+
+                          {/* Riwayat Tiket Singkat Petugas (Hanya tampil saat di-expand) */}
+                          {isExpanded && off.tickets.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-border/60">
+                              <p className="text-[10px] font-semibold text-muted-foreground mb-1">
+                                Rincian Tiket Pelanggaran ({off.tickets.length}):
+                              </p>
+                              <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                                {off.tickets.map((t) => (
+                                  <div
+                                    key={t.id}
+                                    className="flex items-center justify-between gap-1.5 p-1 rounded bg-muted/40 text-[10px]"
+                                  >
+                                    <div className="flex items-center gap-1 min-w-0">
+                                      <span className="font-mono text-muted-foreground shrink-0">{t.id}</span>
+                                      <span className="truncate font-medium text-foreground">{t.jenis}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">
+                                        {t.poin} Pts
+                                      </span>
+                                      <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))
+                      );
+                    })}
+                  </div>
+                ) : officerList.length > 0 ? (
+                  <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                    Tidak ditemukan petugas dengan nama "{officerSearch}".
+                  </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                     <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
