@@ -47,6 +47,7 @@ import {
   getCustomMitraListFromStorage,
   getDeletedViolationIds,
   hydrateCustomDataFromIndexedDB,
+  isRealViolation,
   sbuOptions,
   sbuMitraMapping,
 } from "@/lib/iconguard-data";
@@ -304,36 +305,56 @@ function Dashboard() {
     const deletedIds = new Set(getDeletedViolationIds());
     const custom = getCustomViolationsFromStorage();
     const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
-    if (isOverridden && custom.length > 0) {
-      return custom.filter((v) => !deletedIds.has(v.id));
-    }
     const base = loadedViolations ?? violations;
     const combined = [
       ...custom,
       ...base.filter((v) => !custom.some((c) => c.id === v.id)),
     ];
-    return combined.filter((v) => !deletedIds.has(v.id));
+    return (isOverridden && custom.length > 0 ? custom : combined).filter(
+      (v) => !deletedIds.has(v.id) && isRealViolation(v),
+    );
   }, [loadedViolations, refreshTrigger]);
 
   const allMitraList = useMemo(() => {
     const customMitra = getCustomMitraListFromStorage();
     const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
+    let baseList: Mitra[] = [];
     if (isOverridden && customMitra.length > 0) {
-      return customMitra;
-    }
-    const base = loadedMitraList ?? mitraList;
-    if (customMitra.length === 0) return base;
-    const list = [...base];
-    for (const cm of customMitra) {
-      const idx = list.findIndex((m) => m.nama.trim().toLowerCase() === cm.nama.trim().toLowerCase());
-      if (idx >= 0) {
-        list[idx] = cm;
+      baseList = customMitra;
+    } else {
+      const base = loadedMitraList ?? mitraList;
+      if (customMitra.length === 0) {
+        baseList = base;
       } else {
-        list.unshift(cm);
+        const list = [...base];
+        for (const cm of customMitra) {
+          const idx = list.findIndex((m) => m.nama.trim().toLowerCase() === cm.nama.trim().toLowerCase());
+          if (idx >= 0) {
+            list[idx] = cm;
+          } else {
+            list.unshift(cm);
+          }
+        }
+        baseList = list;
       }
     }
-    return list;
-  }, [loadedMitraList, refreshTrigger]);
+
+    // Sinkronisasi data skor dan kasus riil dari allViolations (murni pelanggaran teknis, bukan inspeksi rutin)
+    return baseList.map((m) => {
+      const mViolations = allViolations.filter(
+        (v) => v.mitra.trim().toLowerCase() === m.nama.trim().toLowerCase() && isRealViolation(v),
+      );
+      const realSkor = mViolations.reduce((acc, v) => acc + (v.poin || 0), 0);
+      const realTotal = mViolations.length;
+      const realAktif = mViolations.filter((v) => v.status !== "Closed").length;
+      return {
+        ...m,
+        skor: realSkor,
+        totalPelanggaran: realTotal,
+        pelanggaranAktif: realAktif,
+      };
+    });
+  }, [loadedMitraList, refreshTrigger, allViolations]);
 
   // SBU yang dipilih untuk memfilter 4 kotak KPI di atas (null = seluruh SBU)
   const [selectedSbuForKpi, setSelectedSbuForKpi] = useState<string | null>(null);

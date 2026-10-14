@@ -221,7 +221,7 @@ function LaporPage() {
 
   // Jenis Pelanggaran Otomatis
   const autoJenis = useMemo(() => {
-    if (isAllOk) return "Inspeksi QC Rutin Material & Jasa";
+    if (isAllOk) return "";
     if (nokItems.length === 1) return nokItems[0].label;
     if (nokItems.length > 1) {
       return `${nokItems[0].label} (+${nokItems.length - 1} temuan lainnya)`;
@@ -299,6 +299,11 @@ function LaporPage() {
           }
           if (!effectivePetugas) {
             toast.error("Mohon tentukan Nama Petugas Mitra.");
+            return;
+          }
+
+          if (isAllOk && !manualJenis.trim()) {
+            toast.error("Seluruh parameter QC bernilai OK (Nihil Pelanggaran). Inspeksi rutin yang memenuhi standar tidak dicatat sebagai tiket pelanggaran.");
             return;
           }
 
@@ -843,15 +848,22 @@ function LaporPage() {
               </div>
             </CardContent>
             <div className="p-4 pt-0 space-y-2">
-              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={isSubmitting || (isAllOk && !manualJenis.trim())}
+              >
                 {isSubmitting
                   ? "Menyimpan Data..."
-                  : isAllOk
-                    ? "Simpan Hasil QC (Semua OK)"
+                  : isAllOk && !manualJenis.trim()
+                    ? "Seluruh Parameter OK (Nihil Pelanggaran)"
                     : "Kirim Laporan Pelanggaran"}
               </Button>
               <p className="text-[11px] text-center text-muted-foreground">
-                Data akan otomatis tersinkronisasi ke Dashboard, Riwayat Pelanggaran, dan Scorecard Mitra.
+                {isAllOk && !manualJenis.trim()
+                  ? "Inspeksi rutin yang memenuhi standar tidak dicatat sebagai pelanggaran pada sistem."
+                  : "Data akan otomatis tersinkronisasi ke Dashboard, Riwayat Pelanggaran, dan Scorecard Mitra."}
               </p>
             </div>
           </Card>

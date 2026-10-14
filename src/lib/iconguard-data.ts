@@ -454,15 +454,16 @@ export function setServerViolationsAndMitra(
   newMitraList?: Mitra[],
   replaceAll = true,
 ): void {
+  const filteredViolations = newViolationsList.filter(isRealViolation);
   if (replaceAll) {
     violations.length = 0;
-    violations.push(...newViolationsList);
+    violations.push(...filteredViolations);
     if (newMitraList && newMitraList.length > 0) {
       mitraList.length = 0;
       mitraList.push(...newMitraList);
     }
   } else {
-    violations.unshift(...newViolationsList);
+    violations.unshift(...filteredViolations);
   }
 }
 
@@ -591,7 +592,7 @@ export async function saveCustomDataToIndexedDB(
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE_NAME, "readwrite");
       const store = tx.objectStore(IDB_STORE_NAME);
-      store.put(newViolations, "violations");
+      store.put(newViolations.filter(isRealViolation), "violations");
       store.put(newMitra, "mitra");
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -600,6 +601,20 @@ export async function saveCustomDataToIndexedDB(
   } catch {
     // ignore
   }
+}
+
+export function isRealViolation(v?: { jenis?: string | null; poin?: number | null; status?: string | null } | null): boolean {
+  if (!v || !v.jenis) return false;
+  const j = v.jenis.trim().toLowerCase();
+  if (
+    j === "inspeksi qc rutin material & jasa" ||
+    j === "inspeksi qc rutin" ||
+    j === "pemeriksaan lapangan" ||
+    j.includes("inspeksi qc rutin")
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export function isSbuCodeOrLabel(val?: string): boolean {
@@ -651,10 +666,15 @@ export async function hydrateCustomDataFromIndexedDB(): Promise<{
     if (result) {
       const deletedIds = new Set(getDeletedViolationIds());
       const activeViolations = result.violations
-        .filter((v) => !deletedIds.has(v.id))
+        .filter((v) => !deletedIds.has(v.id) && isRealViolation(v))
         .map(sanitizeViolation);
       violations.length = 0;
       violations.push(...activeViolations);
+
+      // Otomatis hapus data non-pelanggaran dari IndexedDB jika ada
+      if (activeViolations.length !== result.violations.length) {
+        void saveCustomDataToIndexedDB(activeViolations, result.mitraList);
+      }
 
       if (result.mitraList.length > 0) {
         mitraList.length = 0;
@@ -673,17 +693,18 @@ export function getCustomViolationsFromStorage(): Violation[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
-    if (!raw) return violations.length > 0 ? [...violations] : [];
+    if (!raw) return violations.length > 0 ? violations.filter(isRealViolation) : [];
     const list = JSON.parse(raw) as Violation[];
     const cleaned = list
-      .filter((v) => v.jenis !== "Pemeriksaan Lapangan")
+      .filter(isRealViolation)
       .map(sanitizeViolation);
     if (cleaned.length !== list.length) {
       localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(cleaned));
+      void saveCustomDataToIndexedDB(cleaned, getCustomMitraListFromStorage());
     }
     return cleaned;
   } catch {
-    return violations.length > 0 ? [...violations] : [];
+    return violations.length > 0 ? violations.filter(isRealViolation) : [];
   }
 }
 
@@ -728,6 +749,7 @@ export function getCustomMitraListFromStorage(): Mitra[] {
 
 function saveCustomViolationToStorage(item: Violation) {
   if (typeof window === "undefined") return;
+  if (!isRealViolation(item)) return;
   try {
     const list = getCustomViolationsFromStorage();
     const idx = list.findIndex((v) => v.id === item.id);
@@ -736,12 +758,13 @@ function saveCustomViolationToStorage(item: Violation) {
     } else {
       list.unshift(item);
     }
+    const filteredList = list.filter(isRealViolation);
     try {
-      localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(list));
+      localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(filteredList));
     } catch {
       // QuotaExceeded fallback to IndexedDB
     }
-    void saveCustomDataToIndexedDB(list, mitraList);
+    void saveCustomDataToIndexedDB(filteredList, mitraList);
   } catch {
     // ignore storage errors
   }
@@ -754,7 +777,7 @@ export function restoreCustomViolationsFromStorage() {
     const list: Violation[] = raw ? JSON.parse(raw) : [];
     const deletedIds = new Set(getDeletedViolationIds());
     for (const item of [...list].reverse().map(sanitizeViolation)) {
-      if (deletedIds.has(item.id)) continue;
+      if (!isRealViolation(item) || deletedIds.has(item.id)) continue;
       const existing = violations.find((v) => v.id === item.id || (v.idPa === item.idPa && v.jenis === item.jenis));
       if (!existing) {
         violations.unshift(item);

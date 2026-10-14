@@ -23,6 +23,7 @@ import {
   getCustomMitraListFromStorage,
   getDeletedViolationIds,
   hydrateCustomDataFromIndexedDB,
+  isRealViolation,
   type Mitra,
   type Violation,
 } from "@/lib/iconguard-data";
@@ -66,7 +67,7 @@ function MitraPage() {
     const deletedIds = new Set(getDeletedViolationIds());
     const custom = getCustomViolationsFromStorage();
     if (isOverridden && custom.length > 0) {
-      const filtered = custom.filter((v) => !deletedIds.has(v.id));
+      const filtered = custom.filter((v) => !deletedIds.has(v.id) && isRealViolation(v));
       return isMitra && organization
         ? filtered.filter((v) => v.mitra.trim().toLowerCase() === organization.trim().toLowerCase())
         : filtered;
@@ -76,7 +77,7 @@ function MitraPage() {
       ...custom,
       ...base.filter((v) => !custom.some((c) => c.id === v.id)),
     ];
-    const filtered = combined.filter((v) => !deletedIds.has(v.id));
+    const filtered = combined.filter((v) => !deletedIds.has(v.id) && isRealViolation(v));
     return isMitra && organization
       ? filtered.filter((v) => v.mitra.trim().toLowerCase() === organization.trim().toLowerCase())
       : filtered;
@@ -111,8 +112,24 @@ function MitraPage() {
       }
     }
 
+    // Sinkronisasi data skor dan kasus riil dari allViolations (murni pelanggaran teknis, bukan inspeksi rutin)
+    const synchronized = result.map((m) => {
+      const mViolations = allViolations.filter(
+        (v) => v.mitra.trim().toLowerCase() === m.nama.trim().toLowerCase() && isRealViolation(v),
+      );
+      const realSkor = mViolations.reduce((acc, v) => acc + (v.poin || 0), 0);
+      const realTotal = mViolations.length;
+      const realAktif = mViolations.filter((v) => v.status !== "Closed").length;
+      return {
+        ...m,
+        skor: realSkor,
+        totalPelanggaran: realTotal,
+        pelanggaranAktif: realAktif,
+      };
+    });
+
     // Urutkan dari skor mitra tertinggi ke terendah (hingga yang tidak ada skor / 0)
-    return [...result].sort((a, b) => {
+    return synchronized.sort((a, b) => {
       const skorA = a.skor ?? 0;
       const skorB = b.skor ?? 0;
       if (skorB !== skorA) {
@@ -125,7 +142,7 @@ function MitraPage() {
       }
       return a.nama.localeCompare(b.nama);
     });
-  }, [loadedMitraList, isMitra, organization, refreshTrigger]);
+  }, [loadedMitraList, isMitra, organization, refreshTrigger, allViolations]);
 
   // Agregasi daftar petugas yang melakukan pelanggaran dari mitra yang dipilih di modal
   const officerList = useMemo(() => {
@@ -143,6 +160,7 @@ function MitraPage() {
     >();
 
     allViolations.forEach((v) => {
+      if (!isRealViolation(v)) return;
       if (v.mitra.trim().toLowerCase() !== targetName) return;
       const pName = (v.petugas || "Petugas Lapangan").trim();
       if (!map.has(pName)) {
@@ -320,7 +338,8 @@ function MitraPage() {
                   )}
                   <span>•</span>
                   <span>
-                    {selectedMitraModal.totalPelanggaran} Total Pelanggaran ({selectedMitraModal.pelanggaranAktif} Aktif)
+                    {officerList.reduce((acc, o) => acc + o.totalPelanggaran, 0)} Total Pelanggaran (
+                    {officerList.reduce((acc, o) => acc + o.pelanggaranAktif, 0)} Aktif)
                   </span>
                 </DialogDescription>
               </DialogHeader>
@@ -330,14 +349,14 @@ function MitraPage() {
                 <div className="p-3 rounded-lg border border-border bg-muted/30">
                   <span className="text-[11px] text-muted-foreground block">Akumulasi Penalti</span>
                   <p className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">
-                    {selectedMitraModal.skor}{" "}
+                    {officerList.reduce((acc, o) => acc + o.totalPoin, 0)}{" "}
                     <span className="text-xs font-normal text-muted-foreground">Pts</span>
                   </p>
                 </div>
                 <div className="p-3 rounded-lg border border-border bg-muted/30">
                   <span className="text-[11px] text-muted-foreground block">Kasus Pelanggaran</span>
                   <p className="text-lg font-bold text-foreground mt-0.5">
-                    {selectedMitraModal.totalPelanggaran}{" "}
+                    {officerList.reduce((acc, o) => acc + o.totalPelanggaran, 0)}{" "}
                     <span className="text-xs font-normal text-muted-foreground">kasus</span>
                   </p>
                 </div>

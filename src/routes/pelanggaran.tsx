@@ -38,6 +38,7 @@ import {
   violations,
   getCustomViolationsFromStorage,
   hydrateCustomDataFromIndexedDB,
+  isRealViolation,
   sbuOptions,
   type Violation,
 } from "@/lib/iconguard-data";
@@ -104,7 +105,9 @@ function PelanggaranPage() {
       ...custom,
       ...base.filter((v) => !custom.some((c) => c.id === v.id)),
     ];
-    return combined.filter((v) => !deletedIdsSet.has(v.id));
+    return (isOverridden && custom.length > 0 ? custom : combined).filter(
+      (v) => !deletedIdsSet.has(v.id) && isRealViolation(v),
+    );
   }, [loadedViolations, refreshTrigger]);
   const visibleViolations = allViolations.filter((violation) => !deletedIds.includes(violation.id));
   const [filter, setFilter] = useState<(typeof filters)[number]>("Semua");

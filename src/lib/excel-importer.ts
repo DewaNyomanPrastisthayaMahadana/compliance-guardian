@@ -5,6 +5,7 @@ import {
   poinBySeverity,
   saveCustomDataToIndexedDB,
   sbuOptions,
+  isRealViolation,
   type Violation,
   type Severity,
 } from "./iconguard-data";
@@ -743,54 +744,44 @@ export function processAndImportData(
           qcInstalasi: rowQcInst,
         });
       });
-    } else {
-      // Jika baris ini semua checklist OK atau data umum inspeksi, tetap catat baris inspeksinya dengan status Closed
-      const ticketId = `VL-${new Date().getFullYear()}-${String(ticketIndex++).padStart(4, "0")}`;
-      newViolations.push({
-        id: ticketId,
-        idPa: rawIdPa,
-        mitra: displayMitra,
-        petugas: rawPetugas,
-        petugasQc: rawPetugasQc,
-        petugasMonitoringPusat: rawMonitoringPusat,
-        sbu: rawSbu,
-        tanggalCek: rawTanggalCek,
-        tanggalAktivasi: rawTanggalAktivasi,
-        tanggalPermohonan: rawTanggalPermohonan,
-        kp: rawKp,
-        idFat: rawIdFat,
-        dwGudang: rawDwGudang,
-        lokasiFatPelanggan: rawLokasiFatPelanggan,
-        jenis: "Inspeksi QC Rutin Material & Jasa",
-        severity: "Ringan",
-        status: "Closed",
-        lokasi: `${rawSbu} · ${rawKp || rawLokasiFatPelanggan || "Area Kerja"}`,
-        createdAt: rawTanggalCek !== "—" ? rawTanggalCek : "Hari ini",
-        deadline: "1 x 24 jam",
-        poin: 0,
-        catatan: "Inspeksi QC Material & Jasa telah dilakukan.",
-        checklistResults,
-        qcK3: rowQcK3,
-        qcInstalasi: rowQcInst,
-      });
     }
   });
 
-  if (newViolations.length === 0) {
-    return { success: false, totalParsed: rows.length, totalImported: 0, errors: ["Tidak ada baris data yang valid untuk diimport."] };
-  }
+  // Kumpulkan seluruh nama mitra unik yang ada di file Excel agar tetap masuk ke Scorecard (meskipun 0 pelanggaran)
+  const allMitraInExcel = new Set<string>();
+  rows.forEach((row) => {
+    const rawM = String((mapping.mitra && row[mapping.mitra]) || row["Nama Mitra"] || row["Mitra"] || "").trim();
+    if (rawM) allMitraInExcel.add(rawM);
+  });
+
+  const validViolations = newViolations.filter(isRealViolation);
 
   // Jika replaceAll aktif: kosongkan data demo, gunakan murni data excel yang diunggah
   if (replaceAll) {
     violations.length = 0;
-    violations.push(...newViolations);
+    violations.push(...validViolations);
     mitraList.length = 0;
   } else {
-    violations.unshift(...newViolations);
+    violations.unshift(...validViolations);
   }
 
-  // Hitung ulang Mitra Scorecard dari data riil Excel
-  newViolations.forEach((v) => {
+  // Daftarkan seluruh mitra dari Excel ke mitraList dengan nilai awal 0
+  allMitraInExcel.forEach((mName) => {
+    let existing = mitraList.find((m) => m.nama.trim().toLowerCase() === mName.toLowerCase());
+    if (!existing) {
+      mitraList.push({
+        nama: mName,
+        kontrak: `KTR-${new Date().getFullYear()}-${String(mitraList.length + 1).padStart(3, "0")}`,
+        pic: "PIC Mitra",
+        skor: 0,
+        pelanggaranAktif: 0,
+        totalPelanggaran: 0,
+      });
+    }
+  });
+
+  // Hitung ulang akumulasi skor Mitra Scorecard HANYA dari pelanggaran riil
+  validViolations.forEach((v) => {
     let existing = mitraList.find((m) => m.nama.trim().toLowerCase() === v.mitra.trim().toLowerCase());
     if (!existing) {
       existing = {
@@ -820,19 +811,20 @@ export function processAndImportData(
       localStorage.setItem("iconguard_override_all", "true");
       localStorage.setItem("iconguard_custom_mitra", JSON.stringify(mitraList));
       const STORAGE_KEY = "iconguard_custom_violations";
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newViolations));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(validViolations));
     } catch {
       // Jika localStorage penuh (>5MB), data tetap aman di IndexedDB dan memori
     }
-    void saveCustomDataToIndexedDB([...violations], [...mitraList]);
+    void saveCustomDataToIndexedDB([...violations.filter(isRealViolation)], [...mitraList]);
   }
 
   return {
     success: true,
     totalParsed: rows.length,
-    totalImported: newViolations.length,
-    violations: newViolations,
+    totalImported: validViolations.length,
+    violations: validViolations,
     mitraList: mitraList,
+    errors: validViolations.length === 0 ? ["Seluruh baris inspeksi pada berkas Excel dinyatakan OK (Nihil Pelanggaran). Tidak ada tiket pelanggaran yang ditambahkan."] : undefined,
   };
 }
 
