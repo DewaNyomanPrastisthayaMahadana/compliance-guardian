@@ -3,6 +3,7 @@ import {
   BarChart,
   Bar,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -10,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, CheckCircle2, Clock, Gauge, Plus, FileSpreadsheet, Award, UserCheck, Table as TableIcon, Calendar, MapPin, Building2, User, UserX, FileText, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Gauge, Plus, FileSpreadsheet, Award, UserCheck, Table as TableIcon, Calendar, MapPin, Building2, User, UserX, FileText, ShieldAlert, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { PivotTableView, SBU_REGIONAL_CONFIG } from "@/components/pivot-table-view";
@@ -172,26 +173,51 @@ function Dashboard() {
     return list;
   }, [loadedMitraList, refreshTrigger]);
 
+  // SBU yang dipilih untuk memfilter 4 kotak KPI di atas (null = seluruh SBU)
+  const [selectedSbuForKpi, setSelectedSbuForKpi] = useState<string | null>(null);
+
+  // Pelanggaran yang disaring untuk kotak KPI di atas
+  const kpiViolations = useMemo(() => {
+    if (!selectedSbuForKpi) return allViolations;
+    return allViolations.filter((v) => getSbuKey(v) === selectedSbuForKpi);
+  }, [allViolations, selectedSbuForKpi]);
+
   const openViolations = useMemo(
-    () => allViolations.filter((v) => v.status !== "Closed" && v.jenis !== "Pemeriksaan Lapangan"),
-    [allViolations],
+    () => kpiViolations.filter((v) => v.status !== "Closed" && v.jenis !== "Pemeriksaan Lapangan"),
+    [kpiViolations],
   );
   // Ambil semua pelanggaran dari data QC paling bawah (terbaru)
   const terbaru = openViolations;
 
   const activeViolationsCount = openViolations.length;
-  const pendingClarificationCount = allViolations.filter(
+  const pendingClarificationCount = kpiViolations.filter(
     (v) => v.status === "Pending Klarifikasi",
   ).length;
-  const closedCount = allViolations.filter((v) => v.status === "Closed").length;
+  const closedCount = kpiViolations.filter((v) => v.status === "Closed").length;
 
   // Rata-rata kepatuhan dihitung: 0 poin penalti = 100% patuh, penalti mengurangi persentase
   const avgCompliance = useMemo(() => {
-    if (allMitraList.length === 0) return 100;
-    const totalPoin = allMitraList.reduce((acc, m) => acc + m.skor, 0);
-    const avgPoin = totalPoin / allMitraList.length;
-    return Math.max(0, Math.round(100 - avgPoin));
-  }, [allMitraList]);
+    if (!selectedSbuForKpi) {
+      if (allMitraList.length === 0) return 100;
+      const totalPoin = allMitraList.reduce((acc, m) => acc + m.skor, 0);
+      const avgPoin = totalPoin / allMitraList.length;
+      return Math.max(0, Math.round(100 - avgPoin));
+    }
+
+    // Untuk SBU terpilih
+    const mitraInSbu = new Set(kpiViolations.map((v) => v.mitra.trim().toLowerCase()));
+    const relevantMitra = allMitraList.filter((m) => mitraInSbu.has(m.nama.trim().toLowerCase()));
+
+    if (relevantMitra.length > 0) {
+      const totalSbuPoin = kpiViolations.reduce((acc, v) => acc + (v.poin || 0), 0);
+      const avgSbuPoin = totalSbuPoin / relevantMitra.length;
+      return Math.max(0, Math.round(100 - avgSbuPoin));
+    }
+
+    if (kpiViolations.length === 0) return 100;
+    const totalSbuPoin = kpiViolations.reduce((acc, v) => acc + (v.poin || 0), 0);
+    return Math.max(0, Math.round(100 - totalSbuPoin / Math.max(1, kpiViolations.length)));
+  }, [allMitraList, selectedSbuForKpi, kpiViolations]);
 
   // Mode filter tren grafik: 'bulan' (Tren Pelanggaran Bulanan) atau 'sbu' (Tren Pelanggaran SBU)
   const [trendFilterType, setTrendFilterType] = useState<"bulan" | "sbu">("bulan");
@@ -597,19 +623,51 @@ function Dashboard() {
         }}
       />
 
+      {/* Indikator Filter SBU untuk Kotak KPI di atas */}
+      {selectedSbuForKpi && (
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/10 px-4 py-2 text-xs text-primary dashboard-enter">
+          <div className="flex items-center gap-2">
+            <Building2 className="size-4 shrink-0" />
+            <span>
+              Menampilkan data ringkasan KPI untuk:{" "}
+              <strong>SBU {selectedSbuForKpi}</strong>
+              {sbuOptions.find((s) => s.code === selectedSbuForKpi)?.label
+                ? ` — ${sbuOptions.find((s) => s.code === selectedSbuForKpi)?.label}`
+                : ""}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedSbuForKpi(null)}
+            className="h-7 px-2.5 text-xs text-primary hover:bg-primary/20 gap-1 font-semibold"
+          >
+            <X className="size-3.5" />
+            Reset (Semua SBU)
+          </Button>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi, index) => (
           <Card
             key={kpi.label}
-            className="dashboard-enter"
+            className="dashboard-enter transition-all duration-200"
             style={{ animationDelay: `${index * 90 + 80}ms` }}
           >
             <CardContent className="flex min-h-24 items-center gap-4 !py-4">
               <div className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary">
                 <kpi.icon className="size-5" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{kpi.label}</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <p className="text-sm text-muted-foreground truncate">{kpi.label}</p>
+                  {selectedSbuForKpi && (
+                    <span className="text-[10px] font-semibold text-primary uppercase tracking-wider shrink-0 bg-primary/10 px-1.5 py-0.5 rounded">
+                      {selectedSbuForKpi}
+                    </span>
+                  )}
+                </div>
                 <p className="text-2xl font-bold tracking-tight">{kpi.value}</p>
               </div>
             </CardContent>
@@ -625,11 +683,18 @@ function Dashboard() {
                 <CardTitle>
                   {trendFilterType === "bulan" ? "Tren Pelanggaran Bulanan" : "Tren Pelanggaran SBU"}
                 </CardTitle>
+                {trendFilterType === "sbu" && selectedSbuForKpi && (
+                  <span className="inline-flex items-center rounded-md bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                    Terpilih: {selectedSbuForKpi}
+                  </span>
+                )}
               </div>
               <CardDescription>
                 {trendFilterType === "bulan"
                   ? "Jumlah laporan pelanggaran yang tercatat per bulan"
-                  : "Jumlah laporan pelanggaran yang tercatat per SBU"}
+                  : selectedSbuForKpi
+                  ? `Klik batang ${selectedSbuForKpi} lagi untuk me-reset 4 kotak di atas ke Semua SBU`
+                  : "Klik salah satu diagram batang SBU untuk menyesuaikan 4 kotak di atas"}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -659,24 +724,34 @@ function Dashboard() {
           </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart
+              <BarChart
                 data={activeChartData}
                 margin={{ left: -20, right: 8, top: 8 }}
                 onClick={(state) => {
-                  if (trendFilterType === "bulan") {
-                    const bulan = state?.activePayload?.[0]?.payload?.bulan;
-                    if (typeof bulan === "string") setSelectedMonth(bulan);
+                  if (!state || !state.activePayload || state.activePayload.length === 0) return;
+                  const payload = state.activePayload[0]?.payload;
+                  if (!payload) return;
+
+                  if (trendFilterType === "sbu") {
+                    const sbu = payload.key || payload.name;
+                    if (typeof sbu === "string") {
+                      setSelectedSbuForKpi((prev) => (prev === sbu ? null : sbu));
+                      setSelectedSbuKey(sbu);
+                    }
                   } else {
-                    const sbu = state?.activePayload?.[0]?.payload?.key;
-                    if (typeof sbu === "string") setSelectedSbuKey(sbu);
+                    const bulan = payload.bulan || payload.name;
+                    if (typeof bulan === "string") {
+                      setSelectedMonth(bulan);
+                    }
                   }
                 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis
                   dataKey="name"
                   stroke="var(--muted-foreground)"
                   fontSize={11}
+                  tickLine={false}
                   tick={(props) => {
                     const { x, y, payload } = props as {
                       x: number;
@@ -686,11 +761,12 @@ function Dashboard() {
                     const isSelected =
                       trendFilterType === "bulan"
                         ? payload.value === selectedMonth
-                        : payload.value === selectedSbuKey;
+                        : payload.value === selectedSbuForKpi;
                     const onSelect = () => {
                       if (trendFilterType === "bulan") {
                         setSelectedMonth(payload.value);
                       } else {
+                        setSelectedSbuForKpi((prev) => (prev === payload.value ? null : payload.value));
                         setSelectedSbuKey(payload.value);
                       }
                     };
@@ -717,8 +793,9 @@ function Dashboard() {
                     );
                   }}
                 />
-                <YAxis stroke="var(--muted-foreground)" fontSize={12} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip
+                  cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
                   formatter={(value: any, _name: any, item: any) => [
                     `${value} laporan`,
                     trendFilterType === "sbu" && item?.payload?.fullLabel
@@ -732,15 +809,28 @@ function Dashboard() {
                     fontSize: 12,
                   }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="jumlah"
-                  stroke="var(--primary)"
-                  strokeWidth={3}
-                  dot={{ r: 4, fill: "var(--primary)" }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
+                <Bar dataKey="jumlah" radius={[4, 4, 0, 0]} maxBarSize={34}>
+                  {activeChartData.map((entry, index) => {
+                    const isSelected =
+                      trendFilterType === "sbu"
+                        ? entry.name === selectedSbuForKpi
+                        : entry.name === selectedMonth;
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        cursor="pointer"
+                        fill={
+                          isSelected
+                            ? "var(--primary)"
+                            : trendFilterType === "sbu" && selectedSbuForKpi
+                            ? "hsl(var(--primary) / 0.35)"
+                            : "hsl(var(--primary) / 0.85)"
+                        }
+                      />
+                    );
+                  })}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
