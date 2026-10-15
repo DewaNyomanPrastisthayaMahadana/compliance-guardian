@@ -571,11 +571,11 @@ function Dashboard() {
     return provisions.map((p) => {
       const total = p.awal + p.akhir;
       const displayCount =
-        k3PhaseFilter === "awal" ? p.awal : k3PhaseFilter === "akhir" ? p.akhir : total;
+        jenisDominanMode === "k3_awal" ? p.awal : jenisDominanMode === "k3_akhir" ? p.akhir : total;
       const tickets =
-        k3PhaseFilter === "awal"
+        jenisDominanMode === "k3_awal"
           ? p.ticketsAwal
-          : k3PhaseFilter === "akhir"
+          : jenisDominanMode === "k3_akhir"
           ? p.ticketsAkhir
           : [...p.ticketsAwal, ...p.ticketsAkhir];
       return {
@@ -585,7 +585,7 @@ function Dashboard() {
         tickets,
       };
     }).sort((a, b) => b.displayCount - a.displayCount);
-  }, [allViolations]);
+  }, [allViolations, jenisDominanMode]);
 
   // 6 Ketentuan K3 Awal: k3 awal helm, k3 awal sarung tangan, k3 awal rompi, k3 awal body harnes, k3 awal lengan panjang, k3 awal sepatu
   const k3AwalChartData = useMemo(() => {
@@ -780,13 +780,14 @@ function Dashboard() {
     });
 
     Object.keys(sbuCounts).forEach((k) => {
-      if (!sbuKeys.includes(k) && sbuCounts[k] > 0) {
+      const count = sbuCounts[k] ?? 0;
+      if (!sbuKeys.includes(k) && count > 0) {
         result.push({
           name: k,
           key: k,
           label: k,
           fullLabel: k,
-          jumlah: sbuCounts[k],
+          jumlah: count,
         });
       }
     });

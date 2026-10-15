@@ -220,11 +220,12 @@ function LaporPage() {
   // Jenis Pelanggaran Otomatis (sesuai ketentuan K3 dan item teknis spesifik)
   const autoJenis = useMemo(() => {
     if (isAllOk) return "";
-    if (nokItems.length === 1) {
-      return nokItems[0].label;
+    const firstNok = nokItems[0];
+    if (nokItems.length === 1 && firstNok) {
+      return firstNok.label;
     }
-    if (nokItems.length > 1) {
-      return `${nokItems[0].label} (+${nokItems.length - 1} temuan lainnya)`;
+    if (nokItems.length > 1 && firstNok) {
+      return `${firstNok.label} (+${nokItems.length - 1} temuan lainnya)`;
     }
     return "Temuan Ketidaksesuaian Standar QC";
   }, [isAllOk, nokItems]);
@@ -882,7 +883,7 @@ function ChecklistSection({
 }: {
   title: string;
   icon: React.ReactNode;
-  items: typeof EXCEL_CHECKLIST_ITEMS;
+  items: readonly (typeof EXCEL_CHECKLIST_ITEMS)[number][];
   checklist: Record<string, "OK" | "NOK">;
   onToggle: (label: string) => void;
 }) {
