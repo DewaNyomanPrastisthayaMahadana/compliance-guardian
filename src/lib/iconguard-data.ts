@@ -196,7 +196,78 @@ export type Mitra = {
   skor: number;
   pelanggaranAktif: number;
   totalPelanggaran: number;
+  sbu?: string | undefined;
+  sbuCode?: string | undefined;
+  sbuLabel?: string | undefined;
 };
+
+export const sbuRegionalConfig: Record<string, { label: string; short?: string }> = {
+  "01SBU": { label: "SUMATERA BAGIAN UTARA", short: "SBU" },
+  "02SBT": { label: "SUMATERA BAGIAN TENGAH", short: "SBT" },
+  "03SBS": { label: "SUMATERA BAGIAN SELATAN", short: "SBS" },
+  "04JKT": { label: "JAKARTA & BANTEN", short: "JKT" },
+  "05JBB": { label: "JAWA BAGIAN BARAT", short: "JBB" },
+  "06JTG": { label: "JAWA BAGIAN TENGAH", short: "JTG" },
+  "07JBT": { label: "JAWA BAGIAN TIMUR", short: "JBT" },
+  "08BNT": { label: "BALI NUSA TENGGARA", short: "BNT" },
+  "09KAL": { label: "KALIMANTAN", short: "KAL" },
+  "10SIBT": { label: "SULAWESI INDONESIA BAGIAN TIMUR", short: "SIBT" },
+};
+
+export function getSbuInfo(
+  input?: string | Violation | { sbu?: string; lokasi?: string; mitra?: string }
+): { code: string; label: string; full: string } {
+  let raw = "";
+  if (!input) return { code: "—", label: "—", full: "—" };
+  if (typeof input === "string") {
+    raw = input.trim().toUpperCase();
+  } else {
+    raw = (input.sbu || input.lokasi || "").trim().toUpperCase();
+  }
+
+  // Fallback via mitra mapping if raw is empty
+  if (!raw || raw === "—" || raw === "LAINNYA") {
+    if (typeof input !== "string" && input?.mitra) {
+      const mName = input.mitra.trim().toLowerCase();
+      for (const [code, partners] of Object.entries(sbuMitraMapping)) {
+        if (partners.some((p) => p.nama.trim().toLowerCase() === mName)) {
+          const opt = sbuOptions.find((s) => s.code === code);
+          const label = opt?.label || code;
+          return {
+            code,
+            label,
+            full: `${code} — ${label}`,
+          };
+        }
+      }
+    }
+    return { code: "—", label: "—", full: "—" };
+  }
+
+  for (const sbu of sbuOptions) {
+    if (raw.includes(sbu.code) || raw.includes(sbu.label)) {
+      return { code: sbu.code, label: sbu.label, full: `${sbu.code} — ${sbu.label}` };
+    }
+  }
+
+  for (const [key, conf] of Object.entries(sbuRegionalConfig)) {
+    if (raw.includes(key) || raw.startsWith(key) || (conf.label && raw.includes(conf.label.toUpperCase()))) {
+      const label = conf.label || conf.short || key;
+      return { code: key, label, full: `${key} — ${label}` };
+    }
+  }
+
+  const match = raw.match(/^(\d{2}[A-Z]+)/);
+  if (match && match[1]) {
+    const opt = sbuOptions.find((s) => s.code === match[1]);
+    if (opt) {
+      return { code: opt.code, label: opt.label, full: `${opt.code} — ${opt.label}` };
+    }
+    return { code: match[1], label: match[1], full: match[1] };
+  }
+
+  return { code: raw, label: raw, full: raw };
+}
 
 export const jenisPelanggaran = [
   "K3 Awal - Helm",
