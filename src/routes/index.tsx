@@ -1166,7 +1166,7 @@ function Dashboard() {
                 <BarChart
                   data={dynamicJenisDominan}
                   layout="vertical"
-                  margin={{ left: 8, right: 16 }}
+                  margin={{ left: 0, right: 16 }}
                   onClick={(state) => {
                     if (!state || !state.activePayload || state.activePayload.length === 0) return;
                     const payload = state.activePayload[0]?.payload;
@@ -1191,11 +1191,64 @@ function Dashboard() {
                   <YAxis
                     type="category"
                     dataKey="label"
-                    width={175}
+                    width={155}
                     stroke="var(--muted-foreground)"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
+                    tick={(props: any) => {
+                      const label = String(props.payload?.value || "");
+                      const maxLen = 23;
+                      let lines = [label];
+                      if (label.length > maxLen) {
+                        const words = label.split(" ");
+                        lines = [];
+                        let current = "";
+                        for (const w of words) {
+                          if (!current) {
+                            current = w;
+                          } else if ((current + " " + w).length <= maxLen) {
+                            current += " " + w;
+                          } else {
+                            lines.push(current);
+                            current = w;
+                          }
+                        }
+                        if (current) lines.push(current);
+                      }
+
+                      if (lines.length <= 1) {
+                        return (
+                          <text
+                            x={0}
+                            y={props.y}
+                            textAnchor="start"
+                            dominantBaseline="central"
+                            fontSize={11}
+                            fill="var(--muted-foreground)"
+                          >
+                            {lines[0]}
+                          </text>
+                        );
+                      }
+
+                      return (
+                        <text
+                          x={0}
+                          y={props.y}
+                          textAnchor="start"
+                          fontSize={11}
+                          fill="var(--muted-foreground)"
+                        >
+                          <tspan x={0} dy="-0.55em">
+                            {lines[0]}
+                          </tspan>
+                          <tspan x={0} dy="1.2em">
+                            {lines[1]}
+                          </tspan>
+                        </text>
+                      );
+                    }}
                   />
                   <Tooltip
                     formatter={(val: any, _name: any, item: any) => [
