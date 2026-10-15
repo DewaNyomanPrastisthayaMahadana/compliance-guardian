@@ -382,7 +382,7 @@ function PelanggaranPage() {
               {/* Filter Pilih SBU */}
               <div className="flex items-center gap-2">
                 <Select value={selectedSbu} onValueChange={(val) => setSelectedSbu(val)}>
-                  <SelectTrigger className="w-auto min-w-[245px] h-9 px-3.5 text-xs font-semibold bg-background border-border gap-2">
+                  <SelectTrigger className="w-auto min-w-[245px] sm:min-w-[340px] h-9 px-3.5 text-xs font-semibold bg-background border-border gap-2">
                     <Building2 className="mr-0.5 size-4 text-primary shrink-0" />
                     <SelectValue placeholder="Pilih SBU" />
                   </SelectTrigger>

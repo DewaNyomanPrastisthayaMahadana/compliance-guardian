@@ -1336,7 +1336,7 @@ function Dashboard() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground hidden sm:inline">Pilih SBU:</span>
                 <Select value={selectedSbuKey} onValueChange={(val) => setSelectedSbuKey(val)}>
-                  <SelectTrigger className="w-36 sm:w-48 h-8 text-xs font-semibold">
+                  <SelectTrigger className="w-auto min-w-[200px] sm:min-w-[340px] h-8 text-xs font-semibold bg-muted/30 gap-2">
                     <Building2 className="mr-1.5 size-3.5 text-primary" />
                     <SelectValue placeholder="Pilih SBU" />
                   </SelectTrigger>

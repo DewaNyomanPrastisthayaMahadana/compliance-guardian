@@ -356,15 +356,15 @@ function MitraPage() {
             <span>Filter SBU:</span>
           </div>
           <Select value={selectedSbuFilter} onValueChange={setSelectedSbuFilter}>
-            <SelectTrigger className="h-8 w-56 text-xs bg-muted/40">
+            <SelectTrigger className="h-8 w-auto min-w-[260px] sm:min-w-[380px] max-w-full text-xs font-medium bg-muted/40 gap-2.5 px-3">
               <SelectValue placeholder="Semua SBU" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua SBU (Nasional)</SelectItem>
+            <SelectContent className="max-h-72">
+              <SelectItem value="ALL" className="text-xs">Semua SBU (Nasional)</SelectItem>
               {(availableSbuList.length > 0 ? availableSbuList : sbuOptions).map((s) => {
                 const count = allMitraList.filter((m) => m.sbuCode === s.code).length;
                 return (
-                  <SelectItem key={s.code} value={s.code}>
+                  <SelectItem key={s.code} value={s.code} className="text-xs">
                     {s.code} — {s.label} {count > 0 ? `(${count})` : ""}
                   </SelectItem>
                 );
@@ -438,7 +438,7 @@ function MitraPage() {
                     {m.sbu && m.sbu !== "—" && (
                       <div className="flex items-center gap-1.5 text-foreground/80 font-medium">
                         <Building2 className="size-3 text-primary shrink-0" />
-                        <span className="truncate">{m.sbuLabel || m.sbu}</span>
+                        <span className="break-words leading-tight">{m.sbuLabel || m.sbu}</span>
                       </div>
                     )}
                   </CardDescription>
