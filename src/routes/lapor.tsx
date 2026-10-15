@@ -67,9 +67,8 @@ type EvidenceImage = {
   previewUrl: string;
 };
 
-// 26 Parameter Checklist QC sesuai urutan kolom Excel
+// 24 Parameter Checklist QC sesuai urutan kolom Excel (6 K3 Awal + 12 Teknis/Dokumentasi + 6 K3 Akhir)
 export const EXCEL_CHECKLIST_ITEMS = [
-  { key: "k3_awal_first", label: "K3 Awal - Kelengkapan APD", group: "K3 Awal", defaultSeverity: "Berat" as const },
   { key: "k3_awal_helm", label: "k3 awal helm", group: "K3 Awal", defaultSeverity: "Berat" as const },
   { key: "k3_awal_sarung_tangan", label: "k3 awal sarung tangan", group: "K3 Awal", defaultSeverity: "Berat" as const },
   { key: "k3_awal_rompi", label: "k3 awal rompi", group: "K3 Awal", defaultSeverity: "Berat" as const },
@@ -87,7 +86,6 @@ export const EXCEL_CHECKLIST_ITEMS = [
   { key: "foto_bersama_pelanggan", label: "foto bersama Pelanggan", group: "Dokumentasi", defaultSeverity: "Ringan" as const },
   { key: "foto_depan_rumah_pelangan", label: "foto Depan Rumah pelangan", group: "Dokumentasi", defaultSeverity: "Ringan" as const },
   { key: "aplikasi_my_icon", label: "Aplikasi My Icon", group: "Dokumentasi", defaultSeverity: "Ringan" as const },
-  { key: "k3_akhir_first", label: "K3 Akhir - Kelengkapan APD", group: "K3 Akhir", defaultSeverity: "Berat" as const },
   { key: "k3_akhir_helm", label: "k3 akhir helm", group: "K3 Akhir", defaultSeverity: "Berat" as const },
   { key: "k3_akhir_sarung_tangan", label: "k3 akhir sarung tangan", group: "K3 Akhir", defaultSeverity: "Berat" as const },
   { key: "k3_akhir_rompi", label: "k3 akhir rompi", group: "K3 Akhir", defaultSeverity: "Berat" as const },
@@ -219,20 +217,14 @@ function LaporPage() {
   // Poin Sanksi Otomatis
   const calculatedPoin = isAllOk ? 0 : poinBySeverity[effectiveSeverity];
 
-  // Jenis Pelanggaran Otomatis (prioritaskan ketentuan K3 spesifik)
+  // Jenis Pelanggaran Otomatis (sesuai ketentuan K3 dan item teknis spesifik)
   const autoJenis = useMemo(() => {
     if (isAllOk) return "";
-    const specificNok = nokItems.filter(
-      (n) => n.key !== "k3_awal_first" && n.key !== "k3_akhir_first"
-    );
-    const primaryItems = specificNok.length > 0 ? specificNok : nokItems;
-    if (primaryItems.length === 1) {
-      if (primaryItems[0].key === "k3_awal_first") return "K3 Awal - Kelengkapan APD Standard";
-      if (primaryItems[0].key === "k3_akhir_first") return "K3 Akhir - Kelengkapan APD Standard";
-      return primaryItems[0].label;
+    if (nokItems.length === 1) {
+      return nokItems[0].label;
     }
-    if (primaryItems.length > 1) {
-      return `${primaryItems[0].label} (+${primaryItems.length - 1} temuan lainnya)`;
+    if (nokItems.length > 1) {
+      return `${nokItems[0].label} (+${nokItems.length - 1} temuan lainnya)`;
     }
     return "Temuan Ketidaksesuaian Standar QC";
   }, [isAllOk, nokItems]);

@@ -697,14 +697,14 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
     }
 
     const note = `${v.catatan || ""} ${JSON.stringify(v.checklistResults || {})}`.toLowerCase();
-    const prefix = isFirstAwal ? "K3 Awal" : "K3 Akhir";
-    let concreteJenis = `${prefix} - Helm`;
-    if (note.includes("sarung") || note.includes("tangan")) concreteJenis = `${prefix} - Sarung Tangan`;
-    else if (note.includes("rompi")) concreteJenis = `${prefix} - Rompi`;
-    else if (note.includes("harnes") || note.includes("harness")) concreteJenis = `${prefix} - Body Harness`;
-    else if (note.includes("lengan") || note.includes("baju") || note.includes("seragam")) concreteJenis = `${prefix} - Lengan Panjang`;
-    else if (note.includes("sepatu")) concreteJenis = `${prefix} - Sepatu`;
-    else if (note.includes("helm")) concreteJenis = `${prefix} - Helm`;
+    const prefix = isFirstAwal ? "k3 awal" : "k3 akhir";
+    let concreteJenis = `${prefix} helm`;
+    if (note.includes("sarung") || note.includes("tangan")) concreteJenis = `${prefix} sarung tangan`;
+    else if (note.includes("rompi")) concreteJenis = `${prefix} rompi`;
+    else if (note.includes("harnes") || note.includes("harness")) concreteJenis = `${prefix} body harnes`;
+    else if (note.includes("lengan") || note.includes("baju") || note.includes("seragam")) concreteJenis = `${prefix} lengan panjang`;
+    else if (note.includes("sepatu")) concreteJenis = `${prefix} sepatu`;
+    else if (note.includes("helm")) concreteJenis = `${prefix} helm`;
 
     cleaned.push({
       ...v,
