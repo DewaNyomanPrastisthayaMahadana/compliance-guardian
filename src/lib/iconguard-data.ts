@@ -205,7 +205,6 @@ export const jenisPelanggaran = [
   "K3 Awal - Body Harness",
   "K3 Awal - Lengan Panjang",
   "K3 Awal - Sepatu",
-  "K3 Awal - Kelengkapan APD Standard",
   "ID FAT",
   "Kerapian Instalasi Tiang Listrik",
   "OPM FAT -25 dB",
@@ -223,7 +222,6 @@ export const jenisPelanggaran = [
   "K3 Akhir - Body Harness",
   "K3 Akhir - Lengan Panjang",
   "K3 Akhir - Sepatu",
-  "K3 Akhir - Kelengkapan APD Standard",
   "BAA",
 ] as const;
 
@@ -637,6 +635,7 @@ export function sanitizeViolation(v: Violation): Violation {
 }
 
 /**
+/**
  * Membersihkan data pelanggaran K3 dari label generik/duplikat "First".
  * Mengubah temuan K3 menjadi rincian ketentuan spesifik (Helm, Rompi, Body Harness, Sarung Tangan, Sepatu, Lengan Panjang)
  * dan menghapus tiket duplikat jika ketentuan spesifik sudah tercatat pada inspeksi yang sama.
@@ -658,11 +657,13 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
       jLower.includes("k3 awal - first") ||
       jLower.includes("k3 awal first") ||
       jLower === "awal first" ||
-      jLower === "k3 first";
+      jLower === "k3 first" ||
+      jLower.includes("k3 awal - kelengkapan apd standard");
     const isFirstAkhir =
       jLower.includes("k3 akhir - first") ||
       jLower.includes("k3 akhir first") ||
-      jLower === "akhir first";
+      jLower === "akhir first" ||
+      jLower.includes("k3 akhir - kelengkapan apd standard");
 
     if (!isFirstAwal && !isFirstAkhir) {
       cleaned.push(v);
@@ -674,8 +675,20 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
     const hasSpecificSibling = siblings.some((s) => {
       if (s.id === v.id) return false;
       const sLower = (s.jenis || "").toLowerCase();
-      if (isFirstAwal && sLower.startsWith("k3 awal") && !sLower.includes("first")) return true;
-      if (isFirstAkhir && sLower.startsWith("k3 akhir") && !sLower.includes("first")) return true;
+      if (
+        isFirstAwal &&
+        sLower.startsWith("k3 awal") &&
+        !sLower.includes("first") &&
+        !sLower.includes("kelengkapan apd")
+      )
+        return true;
+      if (
+        isFirstAkhir &&
+        sLower.startsWith("k3 akhir") &&
+        !sLower.includes("first") &&
+        !sLower.includes("kelengkapan apd")
+      )
+        return true;
       return false;
     });
 
@@ -685,13 +698,13 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
 
     const note = `${v.catatan || ""} ${JSON.stringify(v.checklistResults || {})}`.toLowerCase();
     const prefix = isFirstAwal ? "K3 Awal" : "K3 Akhir";
-    let concreteJenis = `${prefix} - Kelengkapan APD Standard`;
-    if (note.includes("helm")) concreteJenis = `${prefix} - Helm`;
+    let concreteJenis = `${prefix} - Helm`;
+    if (note.includes("sarung") || note.includes("tangan")) concreteJenis = `${prefix} - Sarung Tangan`;
     else if (note.includes("rompi")) concreteJenis = `${prefix} - Rompi`;
     else if (note.includes("harnes") || note.includes("harness")) concreteJenis = `${prefix} - Body Harness`;
-    else if (note.includes("sarung") || note.includes("tangan")) concreteJenis = `${prefix} - Sarung Tangan`;
-    else if (note.includes("sepatu")) concreteJenis = `${prefix} - Sepatu`;
     else if (note.includes("lengan") || note.includes("baju") || note.includes("seragam")) concreteJenis = `${prefix} - Lengan Panjang`;
+    else if (note.includes("sepatu")) concreteJenis = `${prefix} - Sepatu`;
+    else if (note.includes("helm")) concreteJenis = `${prefix} - Helm`;
 
     cleaned.push({
       ...v,
@@ -849,9 +862,14 @@ export function restoreCustomViolationsFromStorage() {
   if (typeof window === "undefined") return;
   try {
     const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
-    const list: Violation[] = raw ? JSON.parse(raw) : [];
+    const parsedList: Violation[] = raw ? JSON.parse(raw) : [];
+    const list = cleanK3Violations(parsedList.map(sanitizeViolation));
+    if (list.length !== parsedList.length || list.some((v, idx) => v.jenis !== parsedList[idx]?.jenis)) {
+      localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(list));
+      void saveCustomDataToIndexedDB(list, getCustomMitraListFromStorage());
+    }
     const deletedIds = new Set(getDeletedViolationIds());
-    for (const item of [...list].reverse().map(sanitizeViolation)) {
+    for (const item of [...list].reverse()) {
       if (!isRealViolation(item) || deletedIds.has(item.id)) continue;
       const existing = violations.find((v) => v.id === item.id || (v.idPa === item.idPa && v.jenis === item.jenis));
       if (!existing) {

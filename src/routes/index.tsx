@@ -49,6 +49,7 @@ import {
   getDeletedViolationIds,
   hydrateCustomDataFromIndexedDB,
   isRealViolation,
+  cleanK3Violations,
   sbuOptions,
   sbuMitraMapping,
 } from "@/lib/iconguard-data";
@@ -311,9 +312,10 @@ function Dashboard() {
       ...custom,
       ...base.filter((v) => !custom.some((c) => c.id === v.id)),
     ];
-    return (isOverridden && custom.length > 0 ? custom : combined).filter(
+    const rawList = (isOverridden && custom.length > 0 ? custom : combined).filter(
       (v) => !deletedIds.has(v.id) && isRealViolation(v),
     );
+    return cleanK3Violations(rawList);
   }, [loadedViolations, refreshTrigger]);
 
   const allMitraList = useMemo(() => {
@@ -407,9 +409,9 @@ function Dashboard() {
   const [trendFilterType, setTrendFilterType] = useState<"bulan" | "sbu">("bulan");
   const [selectedSbuKey, setSelectedSbuKey] = useState<string>("01SBU");
 
-  // Mode tampilan Card Jenis Pelanggaran: "all" (Semua Temuan) atau "k3" (Detail 6 Ketentuan K3)
-  const [jenisDominanMode, setJenisDominanMode] = useState<"all" | "k3">("all");
-  const [k3PhaseFilter, setK3PhaseFilter] = useState<"semua" | "awal" | "akhir">("semua");
+  // Mode tampilan Card Ketentuan K3: "k3_awal" (6 Ketentuan K3 Awal) | "k3_akhir" (6 Ketentuan K3 Akhir) | "all" (Semua Temuan)
+  const [jenisDominanMode, setJenisDominanMode] = useState<"k3_awal" | "k3_akhir" | "all">("k3_awal");
+  const [displayStyle, setDisplayStyle] = useState<"chart" | "cards">("chart");
   const [selectedK3Detail, setSelectedK3Detail] = useState<{
     id: string;
     name: string;
@@ -432,13 +434,14 @@ function Dashboard() {
         jLower !== "inspeksi qc rutin material & jasa" &&
         jLower !== "inspeksi qc rutin" &&
         jLower !== "pemeriksaan lapangan" &&
-        !jLower.includes("first")
+        !jLower.includes("first") &&
+        !jLower.includes("kelengkapan apd standard")
       ) {
         counts[j] = (counts[j] || 0) + 1;
       }
     });
     return Object.entries(counts)
-      .map(([label, jumlah]) => ({ label, jumlah }))
+      .map(([label, jumlah]) => ({ label, jumlah, title: label, tickets: [] as Violation[] }))
       .sort((a, b) => b.jumlah - a.jumlah)
       .slice(0, 6);
   }, [allViolations]);
@@ -582,7 +585,135 @@ function Dashboard() {
         tickets,
       };
     }).sort((a, b) => b.displayCount - a.displayCount);
-  }, [allViolations, k3PhaseFilter]);
+  }, [allViolations]);
+
+  // 6 Ketentuan K3 Awal: k3 awal helm, k3 awal sarung tangan, k3 awal rompi, k3 awal body harnes, k3 awal lengan panjang, k3 awal sepatu
+  const k3AwalChartData = useMemo(() => {
+    const helm = dynamicK3Provisions.find((p) => p.id === "helm");
+    const sarung = dynamicK3Provisions.find((p) => p.id === "sarung_tangan");
+    const rompi = dynamicK3Provisions.find((p) => p.id === "rompi");
+    const harnes = dynamicK3Provisions.find((p) => p.id === "body_harness");
+    const lengan = dynamicK3Provisions.find((p) => p.id === "lengan_panjang");
+    const sepatu = dynamicK3Provisions.find((p) => p.id === "sepatu");
+
+    return [
+      {
+        id: "helm",
+        label: "k3 awal helm",
+        title: "Helm Safety (K3 Awal)",
+        icon: "⛑️",
+        jumlah: helm?.awal || 0,
+        tickets: helm?.ticketsAwal || [],
+      },
+      {
+        id: "sarung_tangan",
+        label: "k3 awal sarung tangan",
+        title: "Sarung Tangan (K3 Awal)",
+        icon: "🧤",
+        jumlah: sarung?.awal || 0,
+        tickets: sarung?.ticketsAwal || [],
+      },
+      {
+        id: "rompi",
+        label: "k3 awal rompi",
+        title: "Rompi Reflektor (K3 Awal)",
+        icon: "🦺",
+        jumlah: rompi?.awal || 0,
+        tickets: rompi?.ticketsAwal || [],
+      },
+      {
+        id: "body_harness",
+        label: "k3 awal body harnes",
+        title: "Body Harness (K3 Awal)",
+        icon: "🧗",
+        jumlah: harnes?.awal || 0,
+        tickets: harnes?.ticketsAwal || [],
+      },
+      {
+        id: "lengan_panjang",
+        label: "k3 awal lengan panjang",
+        title: "Lengan Panjang (K3 Awal)",
+        icon: "👕",
+        jumlah: lengan?.awal || 0,
+        tickets: lengan?.ticketsAwal || [],
+      },
+      {
+        id: "sepatu",
+        label: "k3 awal sepatu",
+        title: "Sepatu Safety (K3 Awal)",
+        icon: "🥾",
+        jumlah: sepatu?.awal || 0,
+        tickets: sepatu?.ticketsAwal || [],
+      },
+    ].sort((a, b) => b.jumlah - a.jumlah);
+  }, [dynamicK3Provisions]);
+
+  // 6 Ketentuan K3 Akhir: k3 akhir helm, k3 akhir sarung tangan, k3 akhir rompi, k3 akhir body harnes, k3 akhir lengan panjang, k3 akhir sepatu
+  const k3AkhirChartData = useMemo(() => {
+    const helm = dynamicK3Provisions.find((p) => p.id === "helm");
+    const sarung = dynamicK3Provisions.find((p) => p.id === "sarung_tangan");
+    const rompi = dynamicK3Provisions.find((p) => p.id === "rompi");
+    const harnes = dynamicK3Provisions.find((p) => p.id === "body_harness");
+    const lengan = dynamicK3Provisions.find((p) => p.id === "lengan_panjang");
+    const sepatu = dynamicK3Provisions.find((p) => p.id === "sepatu");
+
+    return [
+      {
+        id: "helm",
+        label: "k3 akhir helm",
+        title: "Helm Safety (K3 Akhir)",
+        icon: "⛑️",
+        jumlah: helm?.akhir || 0,
+        tickets: helm?.ticketsAkhir || [],
+      },
+      {
+        id: "sarung_tangan",
+        label: "k3 akhir sarung tangan",
+        title: "Sarung Tangan (K3 Akhir)",
+        icon: "🧤",
+        jumlah: sarung?.akhir || 0,
+        tickets: sarung?.ticketsAkhir || [],
+      },
+      {
+        id: "rompi",
+        label: "k3 akhir rompi",
+        title: "Rompi Reflektor (K3 Akhir)",
+        icon: "🦺",
+        jumlah: rompi?.akhir || 0,
+        tickets: rompi?.ticketsAkhir || [],
+      },
+      {
+        id: "body_harness",
+        label: "k3 akhir body harnes",
+        title: "Body Harness (K3 Akhir)",
+        icon: "🧗",
+        jumlah: harnes?.akhir || 0,
+        tickets: harnes?.ticketsAkhir || [],
+      },
+      {
+        id: "lengan_panjang",
+        label: "k3 akhir lengan panjang",
+        title: "Lengan Panjang (K3 Akhir)",
+        icon: "👕",
+        jumlah: lengan?.akhir || 0,
+        tickets: lengan?.ticketsAkhir || [],
+      },
+      {
+        id: "sepatu",
+        label: "k3 akhir sepatu",
+        title: "Sepatu Safety (K3 Akhir)",
+        icon: "🥾",
+        jumlah: sepatu?.akhir || 0,
+        tickets: sepatu?.ticketsAkhir || [],
+      },
+    ].sort((a, b) => b.jumlah - a.jumlah);
+  }, [dynamicK3Provisions]);
+
+  const currentDominantChartData = useMemo(() => {
+    if (jenisDominanMode === "k3_awal") return k3AwalChartData;
+    if (jenisDominanMode === "k3_akhir") return k3AkhirChartData;
+    return dynamicJenisDominan;
+  }, [jenisDominanMode, k3AwalChartData, k3AkhirChartData, dynamicJenisDominan]);
 
   // Kalkulasi dinamis grafik tren bulanan dari data aktual (Jan - Okt)
   const dynamicTrenBulanan = useMemo(() => {
@@ -1301,107 +1432,145 @@ function Dashboard() {
               <div>
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <ShieldAlert className="size-4 text-primary" />
-                  Jenis Pelanggaran Dominan
+                  Detail Ketentuan K3 & Dominan
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {jenisDominanMode === "all"
-                    ? "Akumulasi temuan pelanggaran dari data aktif"
-                    : "Detail kepatuhan 6 ketentuan K3 lapangan"}
+                  {jenisDominanMode === "k3_awal"
+                    ? "6 Ketentuan K3 Awal: helm, sarung tangan, rompi, body harnes, lengan panjang, sepatu"
+                    : jenisDominanMode === "k3_akhir"
+                    ? "6 Ketentuan K3 Akhir: helm, sarung tangan, rompi, body harnes, lengan panjang, sepatu"
+                    : "Akumulasi seluruh temuan pelanggaran dominan teknis aktif"}
                 </CardDescription>
               </div>
 
-              {/* View Switcher: Semua Temuan vs Detail Ketentuan K3 */}
-              <div className="inline-flex items-center rounded-lg bg-muted/70 p-1 text-xs self-start sm:self-auto border border-border/50">
-                <button
-                  type="button"
-                  onClick={() => setJenisDominanMode("all")}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
-                    jenisDominanMode === "all"
-                      ? "bg-background text-primary shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Semua Temuan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setJenisDominanMode("k3")}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
-                    jenisDominanMode === "k3"
-                      ? "bg-background text-primary shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <HardHat className="size-3.5 text-amber-500" />
-                  Detail Ketentuan K3
-                </button>
-              </div>
-            </div>
+              <div className="flex items-center gap-1.5 self-start sm:self-auto flex-wrap">
+                {/* Mode Switcher: K3 Awal vs K3 Akhir vs Semua Temuan */}
+                <div className="inline-flex items-center rounded-lg bg-muted/70 p-1 text-xs border border-border/50">
+                  <button
+                    type="button"
+                    onClick={() => setJenisDominanMode("k3_awal")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
+                      jenisDominanMode === "k3_awal"
+                        ? "bg-background text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <HardHat className="size-3.5 text-amber-500" />
+                    K3 Awal (6 Ketentuan)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJenisDominanMode("k3_akhir")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
+                      jenisDominanMode === "k3_akhir"
+                        ? "bg-background text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <ShieldAlert className="size-3.5 text-blue-500" />
+                    K3 Akhir (6 Ketentuan)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJenisDominanMode("all")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                      jenisDominanMode === "all"
+                        ? "bg-background text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Semua Temuan
+                  </button>
+                </div>
 
-            {/* Sub-Filter Fase K3 (Semua / K3 Awal / K3 Akhir) saat tab Ketentuan K3 aktif */}
-            {jenisDominanMode === "k3" && (
-              <div className="flex items-center justify-between pt-2 border-t border-border/40 mt-1">
-                <span className="text-[11px] text-muted-foreground">Pilih Filter Fase K3:</span>
-                <div className="inline-flex items-center gap-1 text-[11px]">
+                {/* Tampilan Switcher: Grafik vs Kartu */}
+                <div className="inline-flex items-center rounded-lg bg-muted/70 p-1 text-xs border border-border/50">
                   <button
                     type="button"
-                    onClick={() => setK3PhaseFilter("semua")}
+                    onClick={() => setDisplayStyle("chart")}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer",
-                      k3PhaseFilter === "semua"
-                        ? "bg-primary text-primary-foreground font-semibold"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
+                      "px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer",
+                      displayStyle === "chart"
+                        ? "bg-background text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    Semua
+                    Grafik
                   </button>
                   <button
                     type="button"
-                    onClick={() => setK3PhaseFilter("awal")}
+                    onClick={() => setDisplayStyle("cards")}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer",
-                      k3PhaseFilter === "awal"
-                        ? "bg-primary text-primary-foreground font-semibold"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
+                      "px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer",
+                      displayStyle === "cards"
+                        ? "bg-background text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    K3 Awal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setK3PhaseFilter("akhir")}
-                    className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer",
-                      k3PhaseFilter === "akhir"
-                        ? "bg-primary text-primary-foreground font-semibold"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    K3 Akhir
+                    Kartu
                   </button>
                 </div>
               </div>
-            )}
+            </div>
           </CardHeader>
           <CardContent className="h-[290px] flex flex-col justify-center pt-0">
-            {jenisDominanMode === "all" ? (
-              dynamicJenisDominan.length > 0 ? (
+            {displayStyle === "chart" ? (
+              currentDominantChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dynamicJenisDominan} layout="vertical" margin={{ left: 10, right: 24, top: 5, bottom: 5 }}>
+                  <BarChart
+                    data={currentDominantChartData}
+                    layout="vertical"
+                    margin={{ left: 10, right: 28, top: 5, bottom: 5 }}
+                    onClick={(state) => {
+                      if (!state || !state.activePayload || state.activePayload.length === 0) return;
+                      const payload = state.activePayload[0]?.payload;
+                      if (!payload) return;
+                      if (payload.tickets && payload.tickets.length > 0) {
+                        setSelectedK3Detail({
+                          id: payload.id || payload.label,
+                          name: payload.title || payload.label,
+                          icon: payload.icon || "⛑️",
+                          total: payload.jumlah || payload.tickets.length,
+                          awal: payload.awal ?? payload.jumlah,
+                          akhir: payload.akhir ?? 0,
+                          tickets: payload.tickets,
+                        });
+                      } else if (payload.label) {
+                        const matching = allViolations.filter(
+                          (v) => (v.jenis || "").trim().toLowerCase() === String(payload.label).trim().toLowerCase()
+                        );
+                        if (matching.length > 0) {
+                          setSelectedK3Detail({
+                            id: payload.label,
+                            name: payload.label,
+                            icon: "⚠️",
+                            total: matching.length,
+                            awal: matching.length,
+                            akhir: 0,
+                            tickets: matching,
+                          });
+                        }
+                      }
+                    }}
+                  >
                     <XAxis type="number" hide />
                     <YAxis
                       type="category"
                       dataKey="label"
-                      width={160}
+                      width={175}
                       stroke="var(--muted-foreground)"
                       fontSize={11}
                       tickLine={false}
                       axisLine={false}
                     />
                     <Tooltip
-                      formatter={(val: any) => [`${val} laporan temuan`, "Jumlah"]}
+                      formatter={(val: any, _name: any, item: any) => [
+                        `${val} laporan temuan (klik untuk detail)`,
+                        item?.payload?.title || "Jumlah",
+                      ]}
                       contentStyle={{
                         background: "var(--card)",
                         border: "1px solid var(--border)",
@@ -1409,66 +1578,106 @@ function Dashboard() {
                         fontSize: 12,
                       }}
                     />
-                    <Bar dataKey="jumlah" fill="#78BAF0" radius={[0, 6, 6, 0]} barSize={15} />
+                    <Bar
+                      dataKey="jumlah"
+                      fill="#78BAF0"
+                      radius={[0, 6, 6, 0]}
+                      barSize={16}
+                      className="cursor-pointer hover:opacity-85 transition-opacity"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="text-center text-xs text-muted-foreground py-8">
                   <CheckCircle2 className="size-6 text-emerald-600 dark:text-emerald-400 mx-auto mb-2" />
                   <p className="font-semibold text-foreground">Tidak Ada Temuan Pelanggaran</p>
-                  <p className="mt-0.5">Belum ada data temuan yang dicatat dalam sistem.</p>
+                  <p className="mt-0.5">Semua parameter pemeriksaan K3 terpenuhi (100% Patuh).</p>
                 </div>
               )
             ) : (
               <div className="space-y-2 overflow-y-auto pr-1 max-h-[280px]">
-                {dynamicK3Provisions.map((item) => {
-                  const isClean = item.displayCount === 0;
-                  const maxVal = Math.max(1, dynamicK3Provisions[0]?.displayCount || 1);
-                  const pct = Math.round((item.displayCount / maxVal) * 100);
+                {(jenisDominanMode === "k3_awal"
+                  ? k3AwalChartData
+                  : jenisDominanMode === "k3_akhir"
+                  ? k3AkhirChartData
+                  : dynamicJenisDominan
+                ).map((item: any) => {
+                  const isClean = item.jumlah === 0;
+                  const maxVal = Math.max(1, currentDominantChartData[0]?.jumlah || 1);
+                  const pct = Math.round((item.jumlah / maxVal) * 100);
                   return (
                     <div
-                      key={item.id}
+                      key={item.label}
                       role="button"
                       tabIndex={0}
                       onClick={() => {
-                        if (item.tickets.length > 0) {
-                          setSelectedK3Detail(item);
+                        if (item.tickets && item.tickets.length > 0) {
+                          setSelectedK3Detail({
+                            id: item.id || item.label,
+                            name: item.title || item.label,
+                            icon: item.icon || "⛑️",
+                            total: item.jumlah,
+                            awal: item.awal ?? item.jumlah,
+                            akhir: item.akhir ?? 0,
+                            tickets: item.tickets,
+                          });
+                        } else if (item.label) {
+                          const matching = allViolations.filter(
+                            (v) => (v.jenis || "").trim().toLowerCase() === String(item.label).trim().toLowerCase()
+                          );
+                          if (matching.length > 0) {
+                            setSelectedK3Detail({
+                              id: item.label,
+                              name: item.label,
+                              icon: "⚠️",
+                              total: matching.length,
+                              awal: matching.length,
+                              akhir: 0,
+                              tickets: matching,
+                            });
+                          }
                         }
                       }}
                       onKeyDown={(e) => {
-                        if ((e.key === "Enter" || e.key === " ") && item.tickets.length > 0) {
+                        if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          setSelectedK3Detail(item);
+                          if (item.tickets && item.tickets.length > 0) {
+                            setSelectedK3Detail({
+                              id: item.id || item.label,
+                              name: item.title || item.label,
+                              icon: item.icon || "⛑️",
+                              total: item.jumlah,
+                              awal: item.awal ?? item.jumlah,
+                              akhir: item.akhir ?? 0,
+                              tickets: item.tickets,
+                            });
+                          }
                         }
                       }}
                       className={cn(
                         "rounded-lg border border-border/70 p-2.5 transition-all text-xs flex flex-col justify-between",
-                        item.tickets.length > 0
+                        item.jumlah > 0
                           ? "hover:bg-muted/50 hover:border-primary/50 cursor-pointer"
                           : "opacity-80"
                       )}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="font-semibold text-foreground flex items-center gap-1.5">
-                          <span className="text-sm">{item.icon}</span>
-                          {item.name}
+                          {item.icon && <span className="text-sm">{item.icon}</span>}
+                          {item.label}
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-muted-foreground">
-                            Awal: <strong className="text-foreground">{item.awal}</strong> · Akhir:{" "}
-                            <strong className="text-foreground">{item.akhir}</strong>
-                          </span>
                           <span
                             className={cn(
                               "rounded px-2 py-0.5 font-bold font-mono text-[11px]",
                               isClean
                                 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                : item.displayCount > 20
+                                : item.jumlah > 20
                                 ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
                                 : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                             )}
                           >
-                            {isClean ? "0 · Patuh" : `${item.displayCount} Temuan`}
+                            {isClean ? "0 · Patuh" : `${item.jumlah} Temuan`}
                           </span>
                         </div>
                       </div>
@@ -1478,7 +1687,7 @@ function Dashboard() {
                           "h-1.5",
                           isClean
                             ? "[&>div]:bg-emerald-500"
-                            : item.displayCount > 20
+                            : item.jumlah > 20
                             ? "[&>div]:bg-rose-500"
                             : "[&>div]:bg-amber-500"
                         )}
@@ -2456,7 +2665,7 @@ function Dashboard() {
                 </div>
                 <DialogTitle className="text-lg mt-1">{selectedK3Detail.name}</DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                  {selectedK3Detail.desc} · Total <strong>{selectedK3Detail.total}</strong> temuan ketidaksesuaian
+                  {(selectedK3Detail as any).desc ? `${(selectedK3Detail as any).desc} · ` : ""}Total <strong>{selectedK3Detail.total}</strong> temuan ketidaksesuaian
                 </DialogDescription>
               </DialogHeader>
 
