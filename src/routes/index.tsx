@@ -1429,24 +1429,53 @@ function Dashboard() {
 
         <Card className="dashboard-enter lg:col-span-2 flex flex-col justify-between" style={{ animationDelay: "560ms" }}>
           <CardHeader className="pb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <ShieldAlert className="size-4 text-primary" />
-                  Detail Ketentuan K3 & Dominan
+                  Jenis Pelanggaran Dominan
                 </CardTitle>
+
+                {/* Tampilan Switcher: Grafik vs Kartu */}
+                <div className="inline-flex items-center rounded-lg bg-muted/70 p-1 text-xs border border-border/50">
+                  <button
+                    type="button"
+                    onClick={() => setDisplayStyle("chart")}
+                    className={cn(
+                      "px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer",
+                      displayStyle === "chart"
+                        ? "bg-background text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Grafik
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDisplayStyle("cards")}
+                    className={cn(
+                      "px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer",
+                      displayStyle === "cards"
+                        ? "bg-background text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Kartu
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <CardDescription className="text-xs">
                   {jenisDominanMode === "k3_awal"
                     ? "6 Ketentuan K3 Awal: helm, sarung tangan, rompi, body harnes, lengan panjang, sepatu"
                     : jenisDominanMode === "k3_akhir"
                     ? "6 Ketentuan K3 Akhir: helm, sarung tangan, rompi, body harnes, lengan panjang, sepatu"
-                    : "Akumulasi seluruh temuan pelanggaran dominan teknis aktif"}
+                    : "Akumulasi seluruh temuan pelanggaran aktif"}
                 </CardDescription>
-              </div>
 
-              <div className="flex items-center gap-1.5 self-start sm:self-auto flex-wrap">
                 {/* Mode Switcher: K3 Awal vs K3 Akhir vs Semua Temuan */}
-                <div className="inline-flex items-center rounded-lg bg-muted/70 p-1 text-xs border border-border/50">
+                <div className="inline-flex items-center rounded-lg bg-muted/70 p-1 text-xs border border-border/50 self-start sm:self-auto">
                   <button
                     type="button"
                     onClick={() => setJenisDominanMode("k3_awal")}
@@ -1484,34 +1513,6 @@ function Dashboard() {
                     )}
                   >
                     Semua Temuan
-                  </button>
-                </div>
-
-                {/* Tampilan Switcher: Grafik vs Kartu */}
-                <div className="inline-flex items-center rounded-lg bg-muted/70 p-1 text-xs border border-border/50">
-                  <button
-                    type="button"
-                    onClick={() => setDisplayStyle("chart")}
-                    className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer",
-                      displayStyle === "chart"
-                        ? "bg-background text-primary shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Grafik
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDisplayStyle("cards")}
-                    className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer",
-                      displayStyle === "cards"
-                        ? "bg-background text-primary shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Kartu
                   </button>
                 </div>
               </div>
