@@ -1673,7 +1673,7 @@ function Dashboard() {
           if (!open) setSelectedViolationDetail(null);
         }}
       >
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
           {selectedViolationDetail && (
             <>
               <DialogHeader>
@@ -1840,7 +1840,7 @@ function Dashboard() {
           if (!open) setSelectedMitraDetail(null);
         }}
       >
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
           {selectedMitraDetail && (
             <>
               <DialogHeader>
@@ -1850,11 +1850,11 @@ function Dashboard() {
                     Detail Evaluasi Mitra · Bulan {selectedTrend.bulan}
                   </span>
                 </div>
-                <DialogTitle className="mt-1 text-lg">{selectedMitraDetail.nama}</DialogTitle>
+                <DialogTitle className="mt-1 text-lg break-words">{selectedMitraDetail.nama}</DialogTitle>
                 <DialogDescription>{selectedMitraDetail.kontrak || "Mitra Aktif"}</DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
+              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm min-w-0">
                 <PopupDetailRow label="Nama Mitra" value={selectedMitraDetail.nama} />
                 <PopupDetailRow
                   label="Nomor / Status Kontrak"
@@ -1877,11 +1877,11 @@ function Dashboard() {
               </div>
 
               {selectedMitraTickets.length > 0 && (
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
                     Daftar Inspeksi &amp; Tiket Bulan {selectedTrend.bulan} ({selectedMitraTickets.length})
                   </p>
-                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  <div className="max-h-52 overflow-y-auto overflow-x-hidden space-y-2 pr-1 min-w-0">
                     {selectedMitraTickets.map((t) => (
                       <div
                         key={t.id}
@@ -1898,15 +1898,15 @@ function Dashboard() {
                             setSelectedViolationDetail(t);
                           }
                         }}
-                        className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-primary/40 cursor-pointer transition-colors"
+                        className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-primary/40 cursor-pointer transition-colors min-w-0"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-foreground truncate">{t.jenis}</span>
-                          <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <span className="font-semibold text-foreground truncate min-w-0 flex-1">{t.jenis}</span>
+                          <StatusPill className="shrink-0" tone={statusTone(t.status)}>{t.status}</StatusPill>
                         </div>
-                        <p className="mt-1 text-muted-foreground">
-                          ID PA: <span className="font-mono text-foreground">{t.idPa ?? "—"}</span> · Petugas:{" "}
-                          <span className="text-foreground">{t.petugas}</span>
+                        <p className="mt-1 text-muted-foreground flex flex-wrap items-center gap-1.5">
+                          <span>ID PA: <span className="font-mono text-foreground">{t.idPa ?? "—"}</span></span>
+                          <span>· Petugas: <span className="text-foreground">{t.petugas}</span></span>
                         </p>
                       </div>
                     ))}
@@ -1934,7 +1934,7 @@ function Dashboard() {
           if (!open) setSelectedPetugasDetail(null);
         }}
       >
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
           {selectedPetugasDetail && (
             <>
               <DialogHeader>
@@ -1945,7 +1945,7 @@ function Dashboard() {
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <DialogTitle className="text-lg">{selectedPetugasDetail.nama}</DialogTitle>
+                  <DialogTitle className="text-lg break-words">{selectedPetugasDetail.nama}</DialogTitle>
                   <span className="inline-flex items-center rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                     SBU {selectedPetugasDetail.sbuCode}
                   </span>
@@ -1958,7 +1958,7 @@ function Dashboard() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
+              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm min-w-0">
                 <PopupDetailRow label="Nama Petugas Mitra" value={selectedPetugasDetail.nama} />
                 <PopupDetailRow
                   label="Wilayah Operasional SBU"
@@ -1980,12 +1980,12 @@ function Dashboard() {
               </div>
 
               {selectedPetugasTickets.length > 0 && (
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
                     Daftar Pekerjaan / Inspeksi QC Bulan {selectedTrend.bulan} (
                     {selectedPetugasTickets.length})
                   </p>
-                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  <div className="max-h-52 overflow-y-auto overflow-x-hidden space-y-2 pr-1 min-w-0">
                     {selectedPetugasTickets.map((t) => (
                       <div
                         key={t.id}
@@ -2002,17 +2002,17 @@ function Dashboard() {
                             setSelectedViolationDetail(t);
                           }
                         }}
-                        className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-emerald-500/40 cursor-pointer transition-colors"
+                        className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-emerald-500/40 cursor-pointer transition-colors min-w-0"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono font-semibold text-foreground">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <span className="font-mono font-semibold text-foreground truncate min-w-0 flex-1">
                             ID PA: {t.idPa ?? t.id}
                           </span>
-                          <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                          <StatusPill className="shrink-0" tone={statusTone(t.status)}>{t.status}</StatusPill>
                         </div>
-                        <p className="mt-1 text-muted-foreground">
-                          SBU: <span className="text-foreground">{t.sbu ?? t.lokasi}</span>
-                          {t.tanggalCek ? ` · Tgl Cek: ${t.tanggalCek}` : ""}
+                        <p className="mt-1 text-muted-foreground flex flex-wrap items-center gap-1.5">
+                          <span>SBU: <span className="text-foreground">{t.sbu ?? t.lokasi}</span></span>
+                          {t.tanggalCek ? <span>· Tgl Cek: {t.tanggalCek}</span> : ""}
                         </p>
                       </div>
                     ))}
@@ -2040,7 +2040,7 @@ function Dashboard() {
           if (!open) setSelectedPetugasTerburukDetail(null);
         }}
       >
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl sm:max-w-2xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
           {selectedPetugasTerburukDetail && (
             <>
               <DialogHeader>
@@ -2051,7 +2051,7 @@ function Dashboard() {
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <DialogTitle className="text-lg">{selectedPetugasTerburukDetail.nama}</DialogTitle>
+                  <DialogTitle className="text-lg break-words">{selectedPetugasTerburukDetail.nama}</DialogTitle>
                   <span className="inline-flex items-center rounded-md bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-600 dark:text-rose-400 font-mono">
                     SBU {selectedPetugasTerburukDetail.sbuCode}
                   </span>
@@ -2064,7 +2064,7 @@ function Dashboard() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm">
+              <div className="space-y-2.5 rounded-lg border border-border bg-muted/20 p-3.5 text-sm min-w-0">
                 <PopupDetailRow label="Nama Petugas Lapangan" value={selectedPetugasTerburukDetail.nama} />
                 <PopupDetailRow
                   label="Wilayah Operasional SBU"
@@ -2104,11 +2104,11 @@ function Dashboard() {
               </div>
 
               {selectedPetugasTerburukDetail.tickets.length > 0 && (
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
                     Daftar Pelanggaran Petugas Bulan {selectedTrend.bulan} ({selectedPetugasTerburukDetail.tickets.length})
                   </p>
-                  <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  <div className="max-h-52 overflow-y-auto overflow-x-hidden space-y-2 pr-1 min-w-0">
                     {selectedPetugasTerburukDetail.tickets.map((t) => {
                       const tSbu = t.sbu || t.lokasi || selectedPetugasTerburukDetail.sbuCode;
                       return (
@@ -2127,10 +2127,10 @@ function Dashboard() {
                               setSelectedViolationDetail(t);
                             }
                           }}
-                          className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-rose-500/40 cursor-pointer transition-colors"
+                          className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-rose-500/40 cursor-pointer transition-colors min-w-0"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-foreground truncate">{t.jenis}</span>
+                          <div className="flex items-center justify-between gap-2 min-w-0">
+                            <span className="font-semibold text-foreground truncate min-w-0 flex-1">{t.jenis}</span>
                             <div className="flex items-center gap-1 shrink-0">
                               <StatusPill tone={severityTone(t.severity)}>{t.severity}</StatusPill>
                               <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
@@ -2138,7 +2138,7 @@ function Dashboard() {
                           </div>
                           <p className="mt-1 text-muted-foreground flex flex-wrap items-center gap-1.5">
                             {tSbu && tSbu !== "—" && (
-                              <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold text-primary font-mono">
+                              <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold text-primary font-mono shrink-0">
                                 {tSbu}
                               </span>
                             )}
@@ -2172,110 +2172,145 @@ function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Pop-up Detail Ketentuan K3 */}
+      {/* Pop-up Detail Ketentuan K3 / Jenis Pelanggaran */}
       <Dialog
         open={Boolean(selectedK3Detail)}
         onOpenChange={(open) => {
           if (!open) setSelectedK3Detail(null);
         }}
       >
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          {selectedK3Detail && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center gap-2">
-                  <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-base">
-                    {selectedK3Detail.icon}
-                  </span>
-                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                    Detail Evaluasi Ketentuan K3
-                  </span>
-                </div>
-                <DialogTitle className="text-lg mt-1">{selectedK3Detail.name}</DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                  {(selectedK3Detail as any).desc ? `${(selectedK3Detail as any).desc} · ` : ""}Total <strong>{selectedK3Detail.total}</strong> temuan ketidaksesuaian
-                </DialogDescription>
-              </DialogHeader>
+        <DialogContent className="max-w-xl sm:max-w-2xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
+          {selectedK3Detail && (() => {
+            const isK3Item = selectedK3Detail.name.toLowerCase().includes("k3");
+            const openCount = selectedK3Detail.tickets.filter((t) => t.status === "Open" || t.status === "Pending").length;
+            const closedCount = selectedK3Detail.tickets.filter((t) => t.status === "Closed").length;
 
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg border border-border bg-muted/30 p-2.5">
-                  <p className="text-[11px] text-muted-foreground">K3 Awal</p>
-                  <p className="text-base font-bold text-foreground mt-0.5">{selectedK3Detail.awal}</p>
-                  <p className="text-[10px] text-muted-foreground">Temuan</p>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-2.5">
-                  <p className="text-[11px] text-muted-foreground">K3 Akhir</p>
-                  <p className="text-base font-bold text-foreground mt-0.5">{selectedK3Detail.akhir}</p>
-                  <p className="text-[10px] text-muted-foreground">Temuan</p>
-                </div>
-                <div className="rounded-lg border border-border bg-rose-500/10 p-2.5">
-                  <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium">Akumulasi</p>
-                  <p className="text-base font-bold text-rose-600 dark:text-rose-400 mt-0.5">{selectedK3Detail.total}</p>
-                  <p className="text-[10px] text-rose-600 dark:text-rose-400">Total Kasus</p>
-                </div>
-              </div>
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center gap-2 pr-6">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-base shrink-0">
+                      {selectedK3Detail.icon}
+                    </span>
+                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider truncate">
+                      {isK3Item ? "Detail Evaluasi Ketentuan K3" : "Detail Jenis Pelanggaran"}
+                    </span>
+                  </div>
+                  <DialogTitle className="text-lg mt-1 break-words leading-snug">{selectedK3Detail.name}</DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                    {(selectedK3Detail as any).desc ? `${(selectedK3Detail as any).desc} · ` : ""}Total <strong>{selectedK3Detail.total}</strong> temuan ketidaksesuaian
+                  </DialogDescription>
+                </DialogHeader>
 
-              {selectedK3Detail.tickets.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
-                    Daftar Tiket Pelanggaran ({selectedK3Detail.tickets.length})
-                  </p>
-                  <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                    {selectedK3Detail.tickets.map((t) => {
-                      const tSbu = t.sbu || t.lokasi || "SBU";
-                      return (
-                        <div
-                          key={t.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            setSelectedK3Detail(null);
-                            setSelectedViolationDetail(t);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  {isK3Item ? (
+                    <>
+                      <div className="rounded-lg border border-border bg-muted/30 p-2.5 min-w-0">
+                        <p className="text-[11px] text-muted-foreground truncate">K3 Awal</p>
+                        <p className="text-base font-bold text-foreground mt-0.5">{selectedK3Detail.awal}</p>
+                        <p className="text-[10px] text-muted-foreground">Temuan</p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-muted/30 p-2.5 min-w-0">
+                        <p className="text-[11px] text-muted-foreground truncate">K3 Akhir</p>
+                        <p className="text-base font-bold text-foreground mt-0.5">{selectedK3Detail.akhir}</p>
+                        <p className="text-[10px] text-muted-foreground">Temuan</p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-rose-500/10 p-2.5 min-w-0">
+                        <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium truncate">Akumulasi</p>
+                        <p className="text-base font-bold text-rose-600 dark:text-rose-400 mt-0.5">{selectedK3Detail.total}</p>
+                        <p className="text-[10px] text-rose-600 dark:text-rose-400">Total Kasus</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="rounded-lg border border-border bg-muted/30 p-2.5 min-w-0">
+                        <p className="text-[11px] text-muted-foreground truncate">Total Temuan</p>
+                        <p className="text-base font-bold text-foreground mt-0.5">{selectedK3Detail.total}</p>
+                        <p className="text-[10px] text-muted-foreground">Laporan</p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-amber-500/10 p-2.5 min-w-0">
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium truncate">Status Open</p>
+                        <p className="text-base font-bold text-amber-600 dark:text-amber-400 mt-0.5">{openCount}</p>
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400">Aktif</p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-emerald-500/10 p-2.5 min-w-0">
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium truncate">Status Closed</p>
+                        <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{closedCount}</p>
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400">Selesai</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {selectedK3Detail.tickets.length > 0 && (
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
+                      Daftar Tiket Pelanggaran ({selectedK3Detail.tickets.length})
+                    </p>
+                    <div className="max-h-60 overflow-y-auto overflow-x-hidden space-y-2 pr-1 min-w-0">
+                      {selectedK3Detail.tickets.map((t) => {
+                        const tSbu = t.sbu || t.lokasi || "SBU";
+                        return (
+                          <div
+                            key={t.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
                               setSelectedK3Detail(null);
                               setSelectedViolationDetail(t);
-                            }
-                          }}
-                          className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-primary/50 cursor-pointer transition-colors"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-foreground truncate">{t.petugas || "Petugas Mitra"} · <span className="font-normal text-muted-foreground">{t.mitra}</span></span>
-                            <StatusPill tone={severityTone(t.severity)}>{t.jenis}</StatusPill>
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setSelectedK3Detail(null);
+                                setSelectedViolationDetail(t);
+                              }
+                            }}
+                            className="rounded-lg border border-border p-2.5 text-xs hover:bg-muted/50 hover:border-primary/50 cursor-pointer transition-colors min-w-0"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 min-w-0">
+                              <div className="min-w-0 flex-1">
+                                <span className="font-semibold text-foreground break-words">{t.petugas || "Petugas Mitra"}</span>
+                                <span className="text-muted-foreground break-words"> · {t.mitra}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-center">
+                                <StatusPill tone={severityTone(t.severity)}>{t.severity || "Temuan"}</StatusPill>
+                                <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                              </div>
+                            </div>
+                            <p className="mt-1.5 text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-relaxed">
+                              {tSbu && tSbu !== "—" && (
+                                <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold text-primary font-mono shrink-0">
+                                  {tSbu}
+                                </span>
+                              )}
+                              {t.kp && (
+                                <span>
+                                  KP: <strong className="text-foreground">{t.kp}</strong> ·
+                                </span>
+                              )}
+                              <span>ID PA: <span className="font-mono text-foreground">{t.idPa ?? t.id}</span></span>
+                              {t.poin > 0 && <span>· Poin: <strong className="text-rose-600 dark:text-rose-400 font-mono">{t.poin} Pts</strong></span>}
+                              {t.tanggalCek ? <span>· Tgl: {t.tanggalCek}</span> : ""}
+                            </p>
                           </div>
-                          <p className="mt-1 text-muted-foreground flex flex-wrap items-center gap-1.5">
-                            {tSbu && tSbu !== "—" && (
-                              <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold text-primary font-mono">
-                                {tSbu}
-                              </span>
-                            )}
-                            {t.kp && (
-                              <span className="text-[11px] text-muted-foreground">
-                                KP: <strong className="text-foreground">{t.kp}</strong> ·
-                              </span>
-                            )}
-                            <span>ID PA: <span className="font-mono text-foreground">{t.idPa ?? t.id}</span></span>
-                            {t.tanggalCek ? <span>· Tgl: {t.tanggalCek}</span> : ""}
-                          </p>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              <DialogFooter className="gap-2 sm:gap-2">
-                <Button variant="outline" onClick={() => setSelectedK3Detail(null)}>
-                  Tutup
-                </Button>
-                <Button asChild>
-                  <Link to="/pelanggaran">Lihat Semua di Manajemen Pelanggaran</Link>
-                </Button>
-              </DialogFooter>
-            </>
-          )}
+                <DialogFooter className="gap-2 sm:gap-2 pt-1">
+                  <Button variant="outline" onClick={() => setSelectedK3Detail(null)}>
+                    Tutup
+                  </Button>
+                  <Button asChild>
+                    <Link to="/pelanggaran">Lihat Semua di Manajemen Pelanggaran</Link>
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

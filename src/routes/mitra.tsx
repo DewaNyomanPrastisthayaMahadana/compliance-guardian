@@ -338,7 +338,7 @@ function MitraPage() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
           {selectedMitraModal && (
             <>
               <DialogHeader>
@@ -420,7 +420,7 @@ function MitraPage() {
               </div>
 
               {/* List Petugas: Grid 2 Kolom Kompak agar Muat Banyak Tanpa Scroll */}
-              <div className="max-h-[440px] overflow-y-auto pr-1">
+              <div className="max-h-[440px] overflow-y-auto overflow-x-hidden pr-1">
                 {filteredOfficerList.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {filteredOfficerList.map((off, idx) => {
