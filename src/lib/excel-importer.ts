@@ -47,8 +47,26 @@ export type ChecklistColDef = {
   aliases: string[];
 };
 
+export const K3_AWAL_ITEMS = [
+  "k3_awal_helm",
+  "k3_awal_sarung_tangan",
+  "k3_awal_rompi",
+  "k3_awal_body_harnes",
+  "k3_awal_lengan_panjang",
+  "k3_awal_sepatu",
+];
+
+export const K3_AKHIR_ITEMS = [
+  "k3_akhir_helm",
+  "k3_akhir_sarung_tangan",
+  "k3_akhir_rompi",
+  "k3_akhir_body_harnes",
+  "k3_akhir_lengan_panjang",
+  "k3_akhir_sepatu",
+];
+
 export const CHECKLIST_COLUMNS: ChecklistColDef[] = [
-  { key: "k3_awal_first", label: "K3 Awal - First", defaultSeverity: "Berat", aliases: ["k3 awal first", "k3 awal - first", "k3 first", "awal first"] },
+  { key: "k3_awal_first", label: "K3 Awal - Kelengkapan APD Standard", defaultSeverity: "Berat", aliases: ["k3 awal first", "k3 awal - first", "k3 first", "awal first", "k3 awal apd", "foto k3 awal"] },
   { key: "k3_awal_helm", label: "K3 Awal - Helm", defaultSeverity: "Berat", aliases: ["k3 awal helm", "k3 awal - helm", "awal helm", "helm awal"] },
   { key: "k3_awal_sarung_tangan", label: "K3 Awal - Sarung Tangan", defaultSeverity: "Berat", aliases: ["k3 awal sarung tangan", "sarung tangan awal", "sarung tangan"] },
   { key: "k3_awal_rompi", label: "K3 Awal - Rompi", defaultSeverity: "Berat", aliases: ["k3 awal rompi", "rompi awal", "rompi"] },
@@ -66,7 +84,7 @@ export const CHECKLIST_COLUMNS: ChecklistColDef[] = [
   { key: "foto_bersama_pelanggan", label: "Foto Bersama Pelanggan", defaultSeverity: "Ringan", aliases: ["foto bersama pelanggan", "foto bersama", "foto pelanggan"] },
   { key: "foto_depan_rumah_pelanggan", label: "Foto Depan Rumah Pelanggan", defaultSeverity: "Ringan", aliases: ["foto depan rumah pelangan", "foto depan rumah pelanggan", "foto depan rumah", "foto rumah"] },
   { key: "aplikasi_my_icon", label: "Aplikasi My Icon", defaultSeverity: "Ringan", aliases: ["aplikasi my icon", "aplikasi myicon", "my icon", "myicon"] },
-  { key: "k3_akhir_first", label: "K3 Akhir - First", defaultSeverity: "Berat", aliases: ["k3 akhir first", "k3 akhir - first", "akhir first"] },
+  { key: "k3_akhir_first", label: "K3 Akhir - Kelengkapan APD Standard", defaultSeverity: "Berat", aliases: ["k3 akhir first", "k3 akhir - first", "akhir first", "k3 akhir apd", "foto k3 akhir"] },
   { key: "k3_akhir_helm", label: "K3 Akhir - Helm", defaultSeverity: "Berat", aliases: ["k3 akhir helm", "k3 akhir - helm", "akhir helm", "helm akhir"] },
   { key: "k3_akhir_sarung_tangan", label: "K3 Akhir - Sarung Tangan", defaultSeverity: "Berat", aliases: ["k3 akhir sarung tangan", "sarung tangan akhir"] },
   { key: "k3_akhir_rompi", label: "K3 Akhir - Rompi", defaultSeverity: "Berat", aliases: ["k3 akhir rompi", "rompi akhir"] },
@@ -653,10 +671,67 @@ export function processAndImportData(
       const val = row[col.headerName!];
       const strVal = String(val ?? "").trim();
       checklistResults[col.label] = strVal;
+    });
 
-      if (isChecklistViolation(strVal)) {
-        violationsInRow.push(col);
+    // Periksa apakah ada temuan K3 Awal spesifik (Helm, Rompi, Body Harness, dll)
+    const specificK3AwalNokCols = matchedChecklistCols.filter(
+      (col) => K3_AWAL_ITEMS.includes(col.key) && isChecklistViolation(String(row[col.headerName!] ?? "").trim())
+    );
+
+    // Periksa apakah ada temuan K3 Akhir spesifik (Helm, Rompi, Body Harness, dll)
+    const specificK3AkhirNokCols = matchedChecklistCols.filter(
+      (col) => K3_AKHIR_ITEMS.includes(col.key) && isChecklistViolation(String(row[col.headerName!] ?? "").trim())
+    );
+
+    matchedChecklistCols.forEach((col) => {
+      const val = row[col.headerName!];
+      const strVal = String(val ?? "").trim();
+
+      if (!isChecklistViolation(strVal)) return;
+
+      // Jangan pernah masukkan k3_awal_first sebagai tiket terpisah jika sudah ada temuan K3 Awal spesifik
+      if (col.key === "k3_awal_first") {
+        if (specificK3AwalNokCols.length > 0) {
+          return;
+        }
+        const remLower = String(row["Remark k3"] || row["remark k3"] || row["Remark Penampilan"] || row["Remark"] || row["KET"] || "").toLowerCase();
+        let specificLabel = "K3 Awal - Kelengkapan APD Standard";
+        if (remLower.includes("helm")) specificLabel = "K3 Awal - Helm";
+        else if (remLower.includes("rompi")) specificLabel = "K3 Awal - Rompi";
+        else if (remLower.includes("harnes") || remLower.includes("harness")) specificLabel = "K3 Awal - Body Harness";
+        else if (remLower.includes("sarung") || remLower.includes("tangan")) specificLabel = "K3 Awal - Sarung Tangan";
+        else if (remLower.includes("sepatu")) specificLabel = "K3 Awal - Sepatu";
+        else if (remLower.includes("lengan") || remLower.includes("baju") || remLower.includes("seragam")) specificLabel = "K3 Awal - Lengan Panjang";
+
+        violationsInRow.push({
+          ...col,
+          label: specificLabel,
+        });
+        return;
       }
+
+      // Jangan pernah masukkan k3_akhir_first sebagai tiket terpisah jika sudah ada temuan K3 Akhir spesifik
+      if (col.key === "k3_akhir_first") {
+        if (specificK3AkhirNokCols.length > 0) {
+          return;
+        }
+        const remLower = String(row["Remark k3"] || row["remark k3"] || row["Remark Penampilan"] || row["Remark"] || row["KET"] || "").toLowerCase();
+        let specificLabel = "K3 Akhir - Kelengkapan APD Standard";
+        if (remLower.includes("helm")) specificLabel = "K3 Akhir - Helm";
+        else if (remLower.includes("rompi")) specificLabel = "K3 Akhir - Rompi";
+        else if (remLower.includes("harnes") || remLower.includes("harness")) specificLabel = "K3 Akhir - Body Harness";
+        else if (remLower.includes("sarung") || remLower.includes("tangan")) specificLabel = "K3 Akhir - Sarung Tangan";
+        else if (remLower.includes("sepatu")) specificLabel = "K3 Akhir - Sepatu";
+        else if (remLower.includes("lengan") || remLower.includes("baju") || remLower.includes("seragam")) specificLabel = "K3 Akhir - Lengan Panjang";
+
+        violationsInRow.push({
+          ...col,
+          label: specificLabel,
+        });
+        return;
+      }
+
+      violationsInRow.push(col);
     });
 
     const rowQcK3 = String(row["QC K3"] ?? row["qc k3"] ?? "").trim().toUpperCase();

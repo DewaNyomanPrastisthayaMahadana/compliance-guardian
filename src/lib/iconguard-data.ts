@@ -199,13 +199,13 @@ export type Mitra = {
 };
 
 export const jenisPelanggaran = [
-  "K3 Awal - First",
   "K3 Awal - Helm",
   "K3 Awal - Sarung Tangan",
   "K3 Awal - Rompi",
   "K3 Awal - Body Harness",
   "K3 Awal - Lengan Panjang",
   "K3 Awal - Sepatu",
+  "K3 Awal - Kelengkapan APD Standard",
   "ID FAT",
   "Kerapian Instalasi Tiang Listrik",
   "OPM FAT -25 dB",
@@ -217,13 +217,13 @@ export const jenisPelanggaran = [
   "Foto Bersama Pelanggan",
   "Foto Depan Rumah Pelanggan",
   "Aplikasi My Icon",
-  "K3 Akhir - First",
   "K3 Akhir - Helm",
   "K3 Akhir - Sarung Tangan",
   "K3 Akhir - Rompi",
   "K3 Akhir - Body Harness",
   "K3 Akhir - Lengan Panjang",
   "K3 Akhir - Sepatu",
+  "K3 Akhir - Kelengkapan APD Standard",
   "BAA",
 ] as const;
 
@@ -636,6 +636,72 @@ export function sanitizeViolation(v: Violation): Violation {
   return v;
 }
 
+/**
+ * Membersihkan data pelanggaran K3 dari label generik/duplikat "First".
+ * Mengubah temuan K3 menjadi rincian ketentuan spesifik (Helm, Rompi, Body Harness, Sarung Tangan, Sepatu, Lengan Panjang)
+ * dan menghapus tiket duplikat jika ketentuan spesifik sudah tercatat pada inspeksi yang sama.
+ */
+export function cleanK3Violations(list: Violation[]): Violation[] {
+  const byPa: Record<string, Violation[]> = {};
+  list.forEach((v) => {
+    const paKey = v.idPa || v.id;
+    if (!byPa[paKey]) byPa[paKey] = [];
+    byPa[paKey].push(v);
+  });
+
+  const cleaned: Violation[] = [];
+
+  list.forEach((v) => {
+    const jRaw = (v.jenis || "").trim();
+    const jLower = jRaw.toLowerCase();
+    const isFirstAwal =
+      jLower.includes("k3 awal - first") ||
+      jLower.includes("k3 awal first") ||
+      jLower === "awal first" ||
+      jLower === "k3 first";
+    const isFirstAkhir =
+      jLower.includes("k3 akhir - first") ||
+      jLower.includes("k3 akhir first") ||
+      jLower === "akhir first";
+
+    if (!isFirstAwal && !isFirstAkhir) {
+      cleaned.push(v);
+      return;
+    }
+
+    const paKey = v.idPa || v.id;
+    const siblings = byPa[paKey] || [];
+    const hasSpecificSibling = siblings.some((s) => {
+      if (s.id === v.id) return false;
+      const sLower = (s.jenis || "").toLowerCase();
+      if (isFirstAwal && sLower.startsWith("k3 awal") && !sLower.includes("first")) return true;
+      if (isFirstAkhir && sLower.startsWith("k3 akhir") && !sLower.includes("first")) return true;
+      return false;
+    });
+
+    if (hasSpecificSibling) {
+      return;
+    }
+
+    const note = `${v.catatan || ""} ${JSON.stringify(v.checklistResults || {})}`.toLowerCase();
+    const prefix = isFirstAwal ? "K3 Awal" : "K3 Akhir";
+    let concreteJenis = `${prefix} - Kelengkapan APD Standard`;
+    if (note.includes("helm")) concreteJenis = `${prefix} - Helm`;
+    else if (note.includes("rompi")) concreteJenis = `${prefix} - Rompi`;
+    else if (note.includes("harnes") || note.includes("harness")) concreteJenis = `${prefix} - Body Harness`;
+    else if (note.includes("sarung") || note.includes("tangan")) concreteJenis = `${prefix} - Sarung Tangan`;
+    else if (note.includes("sepatu")) concreteJenis = `${prefix} - Sepatu`;
+    else if (note.includes("lengan") || note.includes("baju") || note.includes("seragam")) concreteJenis = `${prefix} - Lengan Panjang`;
+
+    cleaned.push({
+      ...v,
+      jenis: concreteJenis,
+    });
+  });
+
+  return cleaned;
+}
+
 export async function hydrateCustomDataFromIndexedDB(): Promise<{
   violations: Violation[];
   mitraList: Mitra[];
@@ -665,14 +731,18 @@ export async function hydrateCustomDataFromIndexedDB(): Promise<{
 
     if (result) {
       const deletedIds = new Set(getDeletedViolationIds());
-      const activeViolations = result.violations
+      const rawActive = result.violations
         .filter((v) => !deletedIds.has(v.id) && isRealViolation(v))
         .map(sanitizeViolation);
+      const activeViolations = cleanK3Violations(rawActive);
       violations.length = 0;
       violations.push(...activeViolations);
 
-      // Otomatis hapus data non-pelanggaran dari IndexedDB jika ada
-      if (activeViolations.length !== result.violations.length) {
+      // Otomatis sinkronisasi data yang telah dibersihkan kembali ke IndexedDB jika ada perubahan
+      if (
+        activeViolations.length !== result.violations.length ||
+        activeViolations.some((v, idx) => v.jenis !== result.violations[idx]?.jenis)
+      ) {
         void saveCustomDataToIndexedDB(activeViolations, result.mitraList);
       }
 
@@ -693,18 +763,23 @@ export function getCustomViolationsFromStorage(): Violation[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
-    if (!raw) return violations.length > 0 ? violations.filter(isRealViolation) : [];
+    if (!raw) return violations.length > 0 ? cleanK3Violations(violations.filter(isRealViolation)) : [];
     const list = JSON.parse(raw) as Violation[];
-    const cleaned = list
-      .filter(isRealViolation)
-      .map(sanitizeViolation);
-    if (cleaned.length !== list.length) {
+    const cleaned = cleanK3Violations(
+      list
+        .filter(isRealViolation)
+        .map(sanitizeViolation)
+    );
+    if (
+      cleaned.length !== list.length ||
+      cleaned.some((v, idx) => v.jenis !== list[idx]?.jenis)
+    ) {
       localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(cleaned));
       void saveCustomDataToIndexedDB(cleaned, getCustomMitraListFromStorage());
     }
     return cleaned;
   } catch {
-    return violations.length > 0 ? violations.filter(isRealViolation) : [];
+    return violations.length > 0 ? cleanK3Violations(violations.filter(isRealViolation)) : [];
   }
 }
 
