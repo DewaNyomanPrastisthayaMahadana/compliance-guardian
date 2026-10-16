@@ -133,10 +133,11 @@ export function ExcelImportModal({ open, onOpenChange, onSuccess }: ExcelImportM
               replaceAll,
             },
           });
-        } catch (serverErr) {
-          console.warn("Server sync error (client fallback used):", serverErr);
+          toast.success(`Berhasil mengimpor & menyimpan permanen ${result.totalImported} data temuan ke database MySQL!`);
+        } catch (serverErr: any) {
+          console.error("Gagal menyimpan ke database MySQL:", serverErr);
+          toast.error("Gagal menyimpan ke database: " + (serverErr?.message || serverErr));
         }
-        toast.success(`Berhasil mengimpor ${result.totalImported} data temuan dari file Excel!`);
         onOpenChange(false);
         resetState();
         if (onSuccess) onSuccess();

@@ -108,6 +108,7 @@ export const mitra = mysqlTable("mitra", {
   statusZona: varchar("status_zona", { length: 20 }).notNull().default("Aman"),
   totalPelanggaran: int("total_pelanggaran").notNull().default(0),
   totalPoin: int("total_poin").notNull().default(0),
+  extraData: text("extra_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -162,6 +163,7 @@ export const violations = mysqlTable("violations", {
   deadlineKlarifikasi: date("deadline_klarifikasi", { mode: "string" }),
   catatan: text("catatan"),
   buktiFotoUrls: json("bukti_foto_urls"),
+  extraData: text("extra_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

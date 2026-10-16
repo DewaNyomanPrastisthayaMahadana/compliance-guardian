@@ -14,6 +14,13 @@ import {
   mitraList,
   violations,
 } from "@/lib/iconguard-data";
+import {
+  fetchViolationsFromDb,
+  fetchMitraFromDb,
+  saveViolationsAndMitraToDb,
+  insertSingleViolationToDb,
+  deleteSingleViolationFromDb,
+} from "@/lib/violations-db";
 import type { AppRole } from "@/lib/demo-access";
 
 const appRoles = ["super-admin", "mitra", "petugas-mitra"] as const;
@@ -141,15 +148,20 @@ export const getMitraScorecardData = createServerFn({ method: "GET" }).handler(a
   const organization = signedInUser.organization?.trim() ?? "";
   const organizationKey = organization.toLowerCase();
 
+  const [allViolations, allMitras] = await Promise.all([
+    fetchViolationsFromDb(request),
+    fetchMitraFromDb(request),
+  ]);
+
   return {
     organization,
     isMitra,
     mitraList: isMitra
-      ? mitraList.filter((mitra) => mitra.nama.trim().toLowerCase() === organizationKey)
-      : mitraList,
+      ? allMitras.filter((mitra) => mitra.nama.trim().toLowerCase() === organizationKey)
+      : allMitras,
     violations: isMitra
-      ? violations.filter((violation) => violation.mitra.trim().toLowerCase() === organizationKey)
-      : violations,
+      ? allViolations.filter((violation) => violation.mitra.trim().toLowerCase() === organizationKey)
+      : allViolations,
   };
 });
 
@@ -179,7 +191,8 @@ export const createViolationReport = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }) => {
-    const violation = addViolationRecord(data);
+    const { request } = getRequestAuth();
+    const violation = await insertSingleViolationToDb(data, request);
     return { success: true, violation };
   });
 
@@ -188,7 +201,7 @@ export const deleteViolationReport = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { request } = getRequestAuth();
     await requireSuperAdmin(request);
-    const deleted = removeViolationRecord(data.id);
+    const deleted = await deleteSingleViolationFromDb(data.id, request);
     if (!deleted) throw new Error("Pelanggaran tidak ditemukan atau sudah dihapus.");
     return { success: true };
   });
@@ -202,7 +215,9 @@ export const importExcelViolations = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }) => {
-    setServerViolationsAndMitra(data.newViolations, data.newMitraList, data.replaceAll);
+    const { request } = getRequestAuth();
+    await requireSuperAdmin(request);
+    await saveViolationsAndMitraToDb(data.newViolations, data.newMitraList, data.replaceAll, request);
     return { success: true, count: data.newViolations.length };
   });
 
@@ -212,9 +227,13 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(async 
   if (!signedInUser) {
     throw new Error("Akses tidak diizinkan.");
   }
+  const [violationsData, mitrasData] = await Promise.all([
+    fetchViolationsFromDb(request),
+    fetchMitraFromDb(request),
+  ]);
   return {
-    violations,
-    mitraList,
+    violations: violationsData,
+    mitraList: mitrasData,
   };
 });
 
@@ -224,8 +243,9 @@ export const getPelanggaranData = createServerFn({ method: "GET" }).handler(asyn
   if (!signedInUser) {
     throw new Error("Akses tidak diizinkan.");
   }
+  const violationsData = await fetchViolationsFromDb(request);
   return {
-    violations,
+    violations: violationsData,
     canDelete: signedInUser.appRole === "super-admin",
   };
 });
