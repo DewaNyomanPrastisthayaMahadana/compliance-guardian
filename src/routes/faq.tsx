@@ -498,3 +498,4 @@ function FaqPage() {
     </AppShell>
   );
 }
+
