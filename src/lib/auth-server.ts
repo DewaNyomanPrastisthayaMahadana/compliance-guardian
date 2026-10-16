@@ -240,12 +240,11 @@ export const bootstrapSuperAdmin = createServerFn({ method: "POST" })
     const [firstUser] = await db.select({ id: user.id }).from(user).limit(1);
     if (firstUser) throw new Error("Super Admin pertama sudah dibuat.");
 
-    const [claim] = await db
-      .insert(authBootstrapGuard)
-      .values({ id: 1 })
-      .onConflictDoNothing()
-      .returning({ id: authBootstrapGuard.id });
-    if (!claim) throw new Error("Setup Super Admin sudah digunakan.");
+    try {
+      await db.insert(authBootstrapGuard).values({ id: 1 });
+    } catch {
+      throw new Error("Setup Super Admin sudah digunakan.");
+    }
 
     try {
       await createAuth(request).api.createUser({
