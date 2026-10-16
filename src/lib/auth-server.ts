@@ -79,6 +79,55 @@ export const getCurrentAuthUser = createServerFn({ method: "GET" }).handler(asyn
   };
 });
 
+export const loginWithGoogleVerified = createServerFn({ method: "POST" })
+  .validator(z.object({ email: z.string().email() }))
+  .handler(async ({ data }) => {
+    const { request, auth } = getRequestAuth();
+    const email = data.email.trim().toLowerCase();
+
+    const db = getAuthDb(request);
+    const [existingUser] = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        appRole: user.appRole,
+        organization: user.organization,
+        banned: user.banned,
+        banReason: user.banReason,
+      })
+      .from(user)
+      .where(eq(user.email, email))
+      .limit(1);
+
+    if (!existingUser) {
+      throw new Error(
+        `Akun Google (${email}) belum didaftarkan oleh Super Admin. Anda tidak dapat masuk ke sistem. Silakan hubungi Super Admin untuk pendaftaran akun terlebih dahulu.`
+      );
+    }
+
+    if (existingUser.banned) {
+      throw new Error(`Akun ini dinonaktifkan: ${existingUser.banReason || "Akses dicabut"}`);
+    }
+
+    await (auth.api as any).signInGoogleVerified({
+      headers: request.headers,
+      body: { email },
+    });
+
+    return {
+      success: true,
+      user: {
+        id: existingUser.id,
+        name: existingUser.name,
+        email: existingUser.email,
+        appRole: existingUser.appRole as AppRole,
+        organization: existingUser.organization ?? "",
+        bootId: SERVER_BOOT_ID,
+      },
+    };
+  });
+
 export const getMitraScorecardData = createServerFn({ method: "GET" }).handler(async () => {
   const { request } = getRequestAuth();
   const signedInUser = await getSignedInUser(request);
