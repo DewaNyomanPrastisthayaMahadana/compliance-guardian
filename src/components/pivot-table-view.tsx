@@ -118,7 +118,7 @@ const getMonthColumn = (dateRaw?: string): string | null => {
 };
 
 const isK3Jenis = (j: string) =>
-  /k3|helm|rompi|sarung|sepatu|harn|lengan/.test(j);
+  /k3|helm|rompi|sarung|sepatu|harn/.test(j);
 const isInstalasiJenis = (j: string) =>
   /instalasi|opm|fat|ont|s-clamp|speedtest|baa|dw/.test(j);
 

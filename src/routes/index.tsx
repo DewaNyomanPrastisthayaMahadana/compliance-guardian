@@ -2234,7 +2234,9 @@ function Dashboard() {
       >
         <DialogContent className="max-w-xl sm:max-w-2xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
           {selectedK3Detail && (() => {
-            const isK3Item = selectedK3Detail.name.toLowerCase().includes("k3");
+            const nameLower = selectedK3Detail.name.toLowerCase();
+            const isK3Item = nameLower.includes("k3");
+            const isPenampilanItem = nameLower.includes("penampilan") || nameLower.includes("lengan");
             const openCount = selectedK3Detail.tickets.filter((t) => t.status === "Open" || t.status === "Pending").length;
             const closedCount = selectedK3Detail.tickets.filter((t) => t.status === "Closed").length;
 
@@ -2246,7 +2248,11 @@ function Dashboard() {
                       {selectedK3Detail.icon}
                     </span>
                     <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider truncate">
-                      {isK3Item ? "Detail Evaluasi Ketentuan K3" : "Detail Jenis Pelanggaran"}
+                      {isPenampilanItem
+                        ? "Detail Evaluasi Ketentuan Penampilan"
+                        : isK3Item
+                          ? "Detail Evaluasi Ketentuan K3"
+                          : "Detail Jenis Pelanggaran"}
                     </span>
                   </div>
                   <DialogTitle className="text-lg mt-1 break-words leading-snug">{selectedK3Detail.name}</DialogTitle>

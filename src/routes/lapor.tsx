@@ -73,7 +73,7 @@ export const EXCEL_CHECKLIST_ITEMS = [
   { key: "k3_awal_sarung_tangan", label: "k3 awal sarung tangan", group: "K3 Awal", defaultSeverity: "Berat" as const },
   { key: "k3_awal_rompi", label: "k3 awal rompi", group: "K3 Awal", defaultSeverity: "Berat" as const },
   { key: "k3_awal_body_harnes", label: "k3 awal body harnes", group: "K3 Awal", defaultSeverity: "Berat" as const },
-  { key: "k3_awal_lengan_panjang", label: "k3 awal lengan panjang", group: "K3 Awal", defaultSeverity: "Berat" as const },
+  { key: "k3_awal_lengan_panjang", label: "Penampilan Awal - Lengan Panjang", group: "Penampilan", defaultSeverity: "Berat" as const },
   { key: "k3_awal_sepatu", label: "k3 awal sepatu", group: "K3 Awal", defaultSeverity: "Berat" as const },
   { key: "id_fat", label: "ID FAT", group: "Instalasi", defaultSeverity: "Sedang" as const },
   { key: "kerapian_instalasi_tiang_listrik", label: "Kerapian instalasi Tiang listrik", group: "Instalasi", defaultSeverity: "Sedang" as const },
@@ -90,7 +90,7 @@ export const EXCEL_CHECKLIST_ITEMS = [
   { key: "k3_akhir_sarung_tangan", label: "k3 akhir sarung tangan", group: "K3 Akhir", defaultSeverity: "Berat" as const },
   { key: "k3_akhir_rompi", label: "k3 akhir rompi", group: "K3 Akhir", defaultSeverity: "Berat" as const },
   { key: "k3_akhir_body_harnes", label: "k3 akhir body harnes", group: "K3 Akhir", defaultSeverity: "Berat" as const },
-  { key: "k3_akhir_lengan_panjang", label: "k3 akhir lengan panjang", group: "K3 Akhir", defaultSeverity: "Berat" as const },
+  { key: "k3_akhir_lengan_panjang", label: "Penampilan Akhir - Lengan Panjang", group: "Penampilan", defaultSeverity: "Berat" as const },
   { key: "k3_akhir_sepatu", label: "k3 akhir sepatu", group: "K3 Akhir", defaultSeverity: "Berat" as const },
   { key: "baa", label: "BAA", group: "Administrasi", defaultSeverity: "Sedang" as const },
 ] as const;
@@ -598,7 +598,7 @@ function LaporPage() {
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="size-3.5" />
-                    {26 - totalNok} OK
+                    {EXCEL_CHECKLIST_ITEMS.length - totalNok} OK
                   </span>
                   <span className="flex items-center gap-1.5 font-semibold text-rose-600 dark:text-rose-400">
                     <AlertTriangle className="size-3.5" />
@@ -607,7 +607,7 @@ function LaporPage() {
                 </div>
                 <span className="text-muted-foreground text-[11px]">
                   {isAllOk
-                    ? "✓ Seluruh parameter memenuhi standar K3 & instalasi"
+                    ? "✓ Seluruh parameter memenuhi standar K3, penampilan & instalasi"
                     : `⚠️ Terdapat ${totalNok} ketidaksesuaian yang terdeteksi`}
                 </span>
               </div>
@@ -616,16 +616,25 @@ function LaporPage() {
               <div className="space-y-4">
                 {/* Kelompok K3 Awal */}
                 <ChecklistSection
-                  title="A. K3 Awal Pelaksanaan (7 Parameter)"
+                  title="A. K3 Awal Pelaksanaan (5 Parameter)"
                   icon={<HardHat className="size-3.5 text-amber-600" />}
                   items={EXCEL_CHECKLIST_ITEMS.filter((i) => i.group === "K3 Awal")}
                   checklist={checklist}
                   onToggle={handleToggleItem}
                 />
 
+                {/* Kelompok Penampilan */}
+                <ChecklistSection
+                  title="B. Standar Penampilan Petugas (2 Parameter)"
+                  icon={<User className="size-3.5 text-indigo-600" />}
+                  items={EXCEL_CHECKLIST_ITEMS.filter((i) => i.group === "Penampilan")}
+                  checklist={checklist}
+                  onToggle={handleToggleItem}
+                />
+
                 {/* Kelompok Instalasi & Alat */}
                 <ChecklistSection
-                  title="B. Standar Material &amp; Instalasi (8 Parameter)"
+                  title="C. Standar Material &amp; Instalasi (8 Parameter)"
                   icon={<Wrench className="size-3.5 text-blue-600" />}
                   items={EXCEL_CHECKLIST_ITEMS.filter((i) => i.group === "Instalasi")}
                   checklist={checklist}
@@ -634,7 +643,7 @@ function LaporPage() {
 
                 {/* Kelompok Dokumentasi */}
                 <ChecklistSection
-                  title="C. Dokumentasi &amp; Aplikasi (3 Parameter)"
+                  title="D. Dokumentasi &amp; Aplikasi (3 Parameter)"
                   icon={<Camera className="size-3.5 text-purple-600" />}
                   items={EXCEL_CHECKLIST_ITEMS.filter((i) => i.group === "Dokumentasi")}
                   checklist={checklist}
@@ -643,7 +652,7 @@ function LaporPage() {
 
                 {/* Kelompok K3 Akhir */}
                 <ChecklistSection
-                  title="D. K3 Akhir Pelaksanaan (7 Parameter)"
+                  title="E. K3 Akhir Pelaksanaan (5 Parameter)"
                   icon={<HardHat className="size-3.5 text-amber-600" />}
                   items={EXCEL_CHECKLIST_ITEMS.filter((i) => i.group === "K3 Akhir")}
                   checklist={checklist}
@@ -652,7 +661,7 @@ function LaporPage() {
 
                 {/* Kelompok Administrasi (BAA) */}
                 <ChecklistSection
-                  title="E. Administrasi &amp; Berita Acara (1 Parameter)"
+                  title="F. Administrasi &amp; Berita Acara (1 Parameter)"
                   icon={<FileText className="size-3.5 text-emerald-600" />}
                   items={EXCEL_CHECKLIST_ITEMS.filter((i) => i.group === "Administrasi")}
                   checklist={checklist}

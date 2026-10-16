@@ -274,7 +274,7 @@ export const jenisPelanggaran = [
   "K3 Awal - Sarung Tangan",
   "K3 Awal - Rompi",
   "K3 Awal - Body Harness",
-  "K3 Awal - Lengan Panjang",
+  "Penampilan Awal - Lengan Panjang",
   "K3 Awal - Sepatu",
   "ID FAT",
   "Kerapian Instalasi Tiang Listrik",
@@ -291,7 +291,7 @@ export const jenisPelanggaran = [
   "K3 Akhir - Sarung Tangan",
   "K3 Akhir - Rompi",
   "K3 Akhir - Body Harness",
-  "K3 Akhir - Lengan Panjang",
+  "Penampilan Akhir - Lengan Panjang",
   "K3 Akhir - Sepatu",
   "BAA",
 ] as const;
@@ -338,7 +338,7 @@ export const jenisDominan = [
   { label: "K3 Awal - Rompi", jumlah: 98 },
   { label: "K3 Awal - Helm", jumlah: 76 },
   { label: "Instalasi S-Clamp dan Hookclam di Rumah", jumlah: 54 },
-  { label: "K3 Awal - Lengan Panjang", jumlah: 49 },
+  { label: "Penampilan Awal - Lengan Panjang", jumlah: 49 },
   { label: "OPM FAT -25 dB", jumlah: 22 },
 ];
 
@@ -724,6 +724,17 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
   list.forEach((v) => {
     const jRaw = (v.jenis || "").trim();
     const jLower = jRaw.toLowerCase();
+
+    // Ubah kategori K3 Lengan Panjang menjadi Penampilan
+    if (jLower.includes("lengan")) {
+      const isAkhirLengan = jLower.includes("akhir");
+      cleaned.push({
+        ...v,
+        jenis: isAkhirLengan ? "Penampilan Akhir - Lengan Panjang" : "Penampilan Awal - Lengan Panjang",
+      });
+      return;
+    }
+
     const isFirstAwal =
       jLower.includes("k3 awal - first") ||
       jLower.includes("k3 awal first") ||
@@ -748,14 +759,14 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
       const sLower = (s.jenis || "").toLowerCase();
       if (
         isFirstAwal &&
-        sLower.startsWith("k3 awal") &&
+        (sLower.startsWith("k3 awal") || sLower.startsWith("penampilan awal")) &&
         !sLower.includes("first") &&
         !sLower.includes("kelengkapan apd")
       )
         return true;
       if (
         isFirstAkhir &&
-        sLower.startsWith("k3 akhir") &&
+        (sLower.startsWith("k3 akhir") || sLower.startsWith("penampilan akhir")) &&
         !sLower.includes("first") &&
         !sLower.includes("kelengkapan apd")
       )
@@ -773,7 +784,8 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
     if (note.includes("sarung") || note.includes("tangan")) concreteJenis = `${prefix} sarung tangan`;
     else if (note.includes("rompi")) concreteJenis = `${prefix} rompi`;
     else if (note.includes("harnes") || note.includes("harness")) concreteJenis = `${prefix} body harnes`;
-    else if (note.includes("lengan") || note.includes("baju") || note.includes("seragam")) concreteJenis = `${prefix} lengan panjang`;
+    else if (note.includes("lengan") || note.includes("baju") || note.includes("seragam"))
+      concreteJenis = isFirstAwal ? "Penampilan Awal - Lengan Panjang" : "Penampilan Akhir - Lengan Panjang";
     else if (note.includes("sepatu")) concreteJenis = `${prefix} sepatu`;
     else if (note.includes("helm")) concreteJenis = `${prefix} helm`;
 
