@@ -148,7 +148,6 @@ function LaporPage() {
   const [petugasQc, setPetugasQc] = useState("");
   const [petugasMonitoringPusat, setPetugasMonitoringPusat] = useState("");
   const [kp, setKp] = useState("");
-  const [idFatCode, setIdFatCode] = useState("");
 
   // 26 Parameter Checklist QC: inisialisasi default "OK"
   const [checklist, setChecklist] = useState<Record<string, "OK" | "NOK">>(() => {
@@ -335,7 +334,6 @@ function LaporPage() {
               tanggalAktivasi: tanggalAktivasi || undefined,
               tanggalPermohonan: tanggalPermohonan || undefined,
               kp: kp.trim() || undefined,
-              idFat: idFatCode.trim() || undefined,
               jenis: effectiveJenis,
               severity: effectiveSeverity,
               status: isAllOk ? ("Closed" as const) : ("Open" as const),
@@ -544,20 +542,11 @@ function LaporPage() {
               </Field>
 
               {/* Kolom 10: KP (Kantor Perwakilan) */}
-              <Field label="10. Kantor Perwakilan (KP)">
+              <Field label="10. Kantor Perwakilan (KP)" className="sm:col-span-2">
                 <Input
                   value={kp}
                   onChange={(e) => setKp(e.target.value)}
                   placeholder="Contoh: KP Medan / KP Pekanbaru..."
-                />
-              </Field>
-
-              {/* ID FAT Opsional Tambahan */}
-              <Field label="Kode ID FAT (Opsional)">
-                <Input
-                  value={idFatCode}
-                  onChange={(e) => setIdFatCode(e.target.value)}
-                  placeholder="Kode ID FAT jika ada..."
                 />
               </Field>
             </CardContent>
