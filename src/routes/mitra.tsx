@@ -621,16 +621,9 @@ function MitraPage() {
                                 {idx + 1}
                               </span>
                               <div className="min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <p className="font-bold text-foreground text-xs truncate" title={off.petugas}>
-                                    {off.petugas}
-                                  </p>
-                                  {off.sbuCode && off.sbuCode !== "—" && (
-                                    <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.2 text-[9px] font-bold text-primary font-mono">
-                                      {off.sbuCode}
-                                    </span>
-                                  )}
-                                </div>
+                                <p className="font-bold text-foreground text-xs truncate" title={off.petugas}>
+                                  {off.petugas}
+                                </p>
                                 <p className="text-muted-foreground text-[10px] truncate flex items-center gap-1.5 mt-0.5">
                                   <span>{off.totalPelanggaran} Kasus ({off.pelanggaranAktif} Aktif)</span>
                                   <span>•</span>
@@ -662,31 +655,23 @@ function MitraPage() {
                                 Rincian Tiket Pelanggaran ({off.tickets.length}):
                               </p>
                               <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                                {off.tickets.map((t) => {
-                                  const ticketSbu = getSbuInfo(t);
-                                  return (
-                                    <div
-                                      key={t.id}
-                                      className="flex items-center justify-between gap-1.5 p-1 rounded bg-muted/40 text-[10px]"
-                                    >
-                                      <div className="flex items-center gap-1.5 min-w-0">
-                                        <span className="font-mono text-muted-foreground shrink-0">{t.id}</span>
-                                        {ticketSbu.code !== "—" && (
-                                          <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-primary/10 text-primary font-bold shrink-0">
-                                            {ticketSbu.code}
-                                          </span>
-                                        )}
-                                        <span className="truncate font-medium text-foreground">{t.jenis}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">
-                                          {t.poin} Pts
-                                        </span>
-                                        <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
-                                      </div>
+                                {off.tickets.map((t) => (
+                                  <div
+                                    key={t.id}
+                                    className="flex items-center justify-between gap-1.5 p-1 rounded bg-muted/40 text-[10px]"
+                                  >
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="font-mono text-muted-foreground shrink-0">{t.id}</span>
+                                      <span className="truncate font-medium text-foreground">{t.jenis}</span>
                                     </div>
-                                  );
-                                })}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">
+                                        {t.poin} Pts
+                                      </span>
+                                      <StatusPill tone={statusTone(t.status)}>{t.status}</StatusPill>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           )}
