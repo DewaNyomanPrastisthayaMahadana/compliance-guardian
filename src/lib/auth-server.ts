@@ -17,7 +17,7 @@ import {
 import type { AppRole } from "@/lib/demo-access";
 
 const appRoles = ["super-admin", "mitra", "petugas-mitra"] as const;
-const routePaths = ["/", "/lapor", "/pelanggaran", "/mitra", "/portal", "/pengguna"] as const;
+const routePaths = ["/", "/lapor", "/pelanggaran", "/mitra", "/portal", "/pengguna", "/faq"] as const;
 type ProtectedRoutePath = (typeof routePaths)[number];
 
 // ID unik setiap kali server dijalankan ulang (restart/start).
@@ -26,8 +26,8 @@ const SERVER_BOOT_ID = `boot-${Date.now()}-${Math.random().toString(36).slice(2,
 
 const routeAccess: Record<AppRole, readonly (typeof routePaths)[number][]> = {
   "super-admin": routePaths,
-  mitra: ["/mitra", "/portal"],
-  "petugas-mitra": ["/portal"],
+  mitra: ["/mitra", "/portal", "/faq"],
+  "petugas-mitra": ["/portal", "/faq"],
 };
 
 const roleLanding: Record<AppRole, "/" | "/portal"> = {

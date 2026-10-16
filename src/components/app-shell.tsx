@@ -7,6 +7,7 @@ import {
   Menu,
   LogOut,
   UsersRound,
+  CircleHelp,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ const nav = [
   { to: "/mitra", label: "Scorecard Mitra", icon: Building2 },
   { to: "/portal", label: "Portal Klarifikasi", icon: MessageSquareShare },
   { to: "/pengguna", label: "Buat Akun", icon: UsersRound },
+  { to: "/faq", label: "FAQ", icon: CircleHelp },
 ] as const;
 
 type CurrentUser = {

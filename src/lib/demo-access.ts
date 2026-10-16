@@ -31,9 +31,9 @@ export const roleDetails: Record<
 };
 
 const accessiblePaths: Record<AppRole, string[]> = {
-  "super-admin": ["/", "/lapor", "/pelanggaran", "/mitra", "/portal", "/pengguna"],
-  mitra: ["/mitra", "/portal"],
-  "petugas-mitra": ["/portal"],
+  "super-admin": ["/", "/lapor", "/pelanggaran", "/mitra", "/portal", "/pengguna", "/faq"],
+  mitra: ["/mitra", "/portal", "/faq"],
+  "petugas-mitra": ["/portal", "/faq"],
 };
 
 export function canAccessPath(role: AppRole, path: string) {
