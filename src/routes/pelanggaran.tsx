@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { deleteViolationReport, getPelanggaranData, requireRouteAccess } from "@/lib/auth-server";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, MapPin, Search, Trash2, Table as TableIcon, LayoutList, Building2, CheckCircle2, Calendar, Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell, PageHeader } from "@/components/app-shell";
@@ -404,6 +404,28 @@ function PelanggaranPage() {
 
   const selected = list.find((v) => v.id === activeSelectedId) ?? list[0];
 
+  const rightColRef = useRef<HTMLDivElement>(null);
+  const [rightColHeight, setRightColHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!rightColRef.current) return;
+    const updateHeight = () => {
+      if (rightColRef.current && window.innerWidth >= 1024) {
+        setRightColHeight(rightColRef.current.offsetHeight);
+      } else {
+        setRightColHeight(null);
+      }
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(rightColRef.current);
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [activeSelectedId, selected, storedEvidence]);
+
   const handleDeleteViolation = async () => {
     if (!pendingDelete) return;
     setIsDeleting(true);
@@ -602,8 +624,16 @@ function PelanggaranPage() {
             </div>
           </div>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="space-y-3 lg:col-span-3">
+      <div className="grid gap-6 lg:grid-cols-5 items-start">
+        <div
+          className="space-y-3 lg:col-span-3 overflow-y-auto pr-1.5 sm:pr-2.5 p-0.5 rounded-2xl scroll-smooth"
+          style={{
+            maxHeight:
+              rightColHeight && rightColHeight > 300
+                ? `${rightColHeight}px`
+                : "calc(100vh - 220px)",
+          }}
+        >
           {list.map((v, index) => (
             <button
               key={v.id}
@@ -670,7 +700,7 @@ function PelanggaranPage() {
           )}
         </div>
 
-        <div className="space-y-6 lg:col-span-2">
+        <div ref={rightColRef} className="space-y-6 lg:col-span-2">
           {selected ? (
             <Card className="dashboard-enter" style={{ animationDelay: "540ms" }}>
               <CardHeader>
