@@ -153,11 +153,11 @@ export const getMitraScorecardData = createServerFn({ method: "GET" }).handler(a
   const signedInUser = await getSignedInUser(request);
   const role = signedInUser?.appRole as AppRole | undefined;
 
-  if (!signedInUser || !role || !["super-admin", "mitra"].includes(role)) {
+  if (!signedInUser || !role || !appRoles.includes(role)) {
     throw new Error("Akses Scorecard tidak diizinkan.");
   }
 
-  const isMitra = role === "mitra";
+  const isMitra = role === "mitra" || role === "petugas-mitra";
   const organization = signedInUser.organization?.trim() ?? "";
   const organizationKey = organization.toLowerCase();
 
@@ -487,7 +487,7 @@ export const deleteManagedUser = createServerFn({ method: "POST" })
     if (!managedUser) throw new Error("Akun tidak ditemukan.");
     if (
       managedUser.id === signedInUser.id ||
-      !["mitra", "petugas-mitra"].includes(managedUser.appRole)
+      !["petugas-sbu", "mitra", "petugas-mitra"].includes(managedUser.appRole)
     ) {
       throw new Error("Akun ini tidak dapat dihapus dari halaman pengguna.");
     }
