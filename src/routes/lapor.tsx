@@ -16,8 +16,15 @@ import {
   HardHat,
   Wrench,
   FileText,
+  RotateCcw,
 } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/app-shell";
+import {
+  getLaporDraft,
+  saveLaporDraft,
+  clearLaporDraft,
+  isLaporDraftActive,
+} from "@/lib/lapor-draft";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -135,22 +142,25 @@ function LaporPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const initialDraft = useMemo(() => getLaporDraft(), []);
+
   // 10 Kolom Informasi Utama Sesuai Format Excel
-  const [tanggalCek, setTanggalCek] = useState(getTodayFormatted());
-  const [selectedSbu, setSelectedSbu] = useState("");
-  const [idPa, setIdPa] = useState("");
-  const [tanggalAktivasi, setTanggalAktivasi] = useState("");
-  const [tanggalPermohonan, setTanggalPermohonan] = useState("");
-  const [selectedMitra, setSelectedMitra] = useState("");
-  const [customMitraInput, setCustomMitraInput] = useState("");
-  const [selectedPetugas, setSelectedPetugas] = useState("");
-  const [customPetugasInput, setCustomPetugasInput] = useState("");
-  const [petugasQc, setPetugasQc] = useState("");
-  const [petugasMonitoringPusat, setPetugasMonitoringPusat] = useState("");
-  const [kp, setKp] = useState("");
+  const [tanggalCek, setTanggalCek] = useState(() => initialDraft?.tanggalCek ?? getTodayFormatted());
+  const [selectedSbu, setSelectedSbu] = useState(() => initialDraft?.selectedSbu ?? "");
+  const [idPa, setIdPa] = useState(() => initialDraft?.idPa ?? "");
+  const [tanggalAktivasi, setTanggalAktivasi] = useState(() => initialDraft?.tanggalAktivasi ?? "");
+  const [tanggalPermohonan, setTanggalPermohonan] = useState(() => initialDraft?.tanggalPermohonan ?? "");
+  const [selectedMitra, setSelectedMitra] = useState(() => initialDraft?.selectedMitra ?? "");
+  const [customMitraInput, setCustomMitraInput] = useState(() => initialDraft?.customMitraInput ?? "");
+  const [selectedPetugas, setSelectedPetugas] = useState(() => initialDraft?.selectedPetugas ?? "");
+  const [customPetugasInput, setCustomPetugasInput] = useState(() => initialDraft?.customPetugasInput ?? "");
+  const [petugasQc, setPetugasQc] = useState(() => initialDraft?.petugasQc ?? "");
+  const [petugasMonitoringPusat, setPetugasMonitoringPusat] = useState(() => initialDraft?.petugasMonitoringPusat ?? "");
+  const [kp, setKp] = useState(() => initialDraft?.kp ?? "");
 
   // 26 Parameter Checklist QC: inisialisasi default "OK"
   const [checklist, setChecklist] = useState<Record<string, "OK" | "NOK">>(() => {
+    if (initialDraft?.checklist) return initialDraft.checklist;
     const init: Record<string, "OK" | "NOK"> = {};
     EXCEL_CHECKLIST_ITEMS.forEach((item) => {
       init[item.label] = "OK";
@@ -159,10 +169,75 @@ function LaporPage() {
   });
 
   // Uraian Temuan / Catatan Tambahan & Foto Bukti
-  const [catatan, setCatatan] = useState("");
-  const [manualSeverity, setManualSeverity] = useState<Severity | "">("");
-  const [manualJenis, setManualJenis] = useState("");
+  const [catatan, setCatatan] = useState(() => initialDraft?.catatan ?? "");
+  const [manualSeverity, setManualSeverity] = useState<Severity | "">(() => (initialDraft?.manualSeverity as Severity | "") ?? "");
+  const [manualJenis, setManualJenis] = useState(() => initialDraft?.manualJenis ?? "");
   const [evidenceImages, setEvidenceImages] = useState<EvidenceImage[]>([]);
+
+  // Auto-save form draft so switching between tabs never loses entered data
+  useEffect(() => {
+    saveLaporDraft({
+      tanggalCek,
+      selectedSbu,
+      idPa,
+      tanggalAktivasi,
+      tanggalPermohonan,
+      selectedMitra,
+      customMitraInput,
+      selectedPetugas,
+      customPetugasInput,
+      petugasQc,
+      petugasMonitoringPusat,
+      kp,
+      checklist,
+      catatan,
+      manualSeverity,
+      manualJenis,
+    });
+  }, [
+    tanggalCek,
+    selectedSbu,
+    idPa,
+    tanggalAktivasi,
+    tanggalPermohonan,
+    selectedMitra,
+    customMitraInput,
+    selectedPetugas,
+    customPetugasInput,
+    petugasQc,
+    petugasMonitoringPusat,
+    kp,
+    checklist,
+    catatan,
+    manualSeverity,
+    manualJenis,
+  ]);
+
+  const handleResetForm = () => {
+    clearLaporDraft();
+    setTanggalCek(getTodayFormatted());
+    setSelectedSbu("");
+    setIdPa("");
+    setTanggalAktivasi("");
+    setTanggalPermohonan("");
+    setSelectedMitra("");
+    setCustomMitraInput("");
+    setSelectedPetugas("");
+    setCustomPetugasInput("");
+    setPetugasQc("");
+    setPetugasMonitoringPusat("");
+    setKp("");
+    const resetChecklist: Record<string, "OK" | "NOK"> = {};
+    EXCEL_CHECKLIST_ITEMS.forEach((item) => {
+      resetChecklist[item.label] = "OK";
+    });
+    setChecklist(resetChecklist);
+    setCatatan("");
+    setManualSeverity("");
+    setManualJenis("");
+    setEvidenceImages([]);
+    toast.info("Formulir telah direset ke kondisi awal.");
+  };
 
   // Daftar Opsi Mitra & Petugas
   const existingMitraStorage = useMemo(() => getCustomMitraListFromStorage(), []);
@@ -269,12 +344,46 @@ function LaporPage() {
     });
   };
 
+  const hasActiveDraft = Boolean(
+    idPa.trim() ||
+      selectedSbu ||
+      selectedMitra ||
+      customMitraInput.trim() ||
+      catatan.trim() ||
+      nokItems.length > 0 ||
+      evidenceImages.length > 0,
+  );
+
   return (
     <AppShell>
       <PageHeader
         title="Input Pelanggaran & Hasil QC"
         description="Formulir inspeksi QC Divisi Material & Jasa lengkap sesuai format Excel (10 Kolom Administrasi + 26 Parameter Checklist)."
       />
+
+      {hasActiveDraft && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50/90 p-3.5 text-xs text-sky-900 shadow-sm dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex size-2.5">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-sky-400 opacity-75"></span>
+              <span className="relative inline-flex size-2.5 rounded-full bg-sky-600"></span>
+            </span>
+            <span>
+              <strong>Draf Isian Tersimpan Otomatis:</strong> Anda dapat berpindah tab (Dashboard, Pelanggaran, dll) kapan saja tanpa kehilangan data isian form ini.
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleResetForm}
+            className="h-7 text-xs border-sky-300 bg-white hover:bg-sky-100 dark:border-sky-700 dark:bg-slate-900"
+          >
+            <RotateCcw className="mr-1.5 size-3.5" />
+            Reset Formulir
+          </Button>
+        </div>
+      )}
 
       <form
         onSubmit={async (e) => {
@@ -362,6 +471,7 @@ function LaporPage() {
               },
             );
 
+            clearLaporDraft();
             void navigate({ to: "/pelanggaran" });
           } catch (err) {
             console.error(err);

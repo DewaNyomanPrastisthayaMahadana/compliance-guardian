@@ -10,13 +10,17 @@ import {
   CircleHelp,
   PanelLeftClose,
   PanelLeftOpen,
+  FileText,
+  X,
+  Plus,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
 import { getCurrentAuthUser } from "@/lib/auth-server";
 import { canAccessPath, roleDetails, type AppRole } from "@/lib/demo-access";
 import { severityTone, statusTone, violations, type Violation } from "@/lib/iconguard-data";
+import { isLaporDraftActive } from "@/lib/lapor-draft";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,12 +34,26 @@ import {
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/lapor", label: "Input Pelanggaran", icon: FileText },
   { to: "/pelanggaran", label: "Pelanggaran", icon: FileWarning },
   { to: "/mitra", label: "Scorecard Mitra", icon: Building2 },
   { to: "/portal", label: "Portal Klarifikasi", icon: MessageSquareShare },
   { to: "/pengguna", label: "Buat Akun", icon: UsersRound },
   { to: "/faq", label: "FAQ", icon: CircleHelp },
 ] as const;
+
+export const ROUTE_TAB_DEFINITIONS: Record<
+  string,
+  { label: string; icon: React.ComponentType<{ className?: string }> }
+> = {
+  "/": { label: "Dashboard", icon: LayoutDashboard },
+  "/lapor": { label: "Input Pelanggaran", icon: FileText },
+  "/pelanggaran": { label: "Data Pelanggaran", icon: FileWarning },
+  "/mitra": { label: "Scorecard Mitra", icon: Building2 },
+  "/portal": { label: "Portal Klarifikasi", icon: MessageSquareShare },
+  "/pengguna": { label: "Kelola Pengguna", icon: UsersRound },
+  "/faq": { label: "FAQ & Bantuan", icon: CircleHelp },
+};
 
 type CurrentUser = {
   id: string;
@@ -158,6 +176,97 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       window.localStorage.setItem(key, JSON.stringify([...seenWarningIds]));
     }
     setFirstLoginWarnings([]);
+  };
+
+  // State untuk Tab Bar Navigasi Multi-Halaman
+  const [openTabs, setOpenTabs] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.sessionStorage.getItem("iconguard_open_tabs");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return ["/"];
+  });
+
+  const [hasLaporDraft, setHasLaporDraft] = useState(false);
+  const [showTabPicker, setShowTabPicker] = useState(false);
+
+  // Pantau ketersediaan draf form lapor agar indikator dot selalu sinkron
+  useEffect(() => {
+    const checkDraft = () => {
+      setHasLaporDraft(isLaporDraftActive());
+    };
+    checkDraft();
+
+    window.addEventListener("iconguard-draft-updated", checkDraft);
+    window.addEventListener("storage", checkDraft);
+    return () => {
+      window.removeEventListener("iconguard-draft-updated", checkDraft);
+      window.removeEventListener("storage", checkDraft);
+    };
+  }, []);
+
+  // Otomatis tambahkan tab bila berpindah ke halaman yang terdaftar
+  useEffect(() => {
+    if (ROUTE_TAB_DEFINITIONS[currentPath]) {
+      setOpenTabs((prev) => {
+        if (!prev.includes(currentPath)) {
+          const updated = [...prev, currentPath];
+          if (typeof window !== "undefined") {
+            try {
+              window.sessionStorage.setItem("iconguard_open_tabs", JSON.stringify(updated));
+            } catch {}
+          }
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [currentPath]);
+
+  const closedAccessibleTabs = useMemo(() => {
+    if (!currentUser) return [];
+    return Object.keys(ROUTE_TAB_DEFINITIONS).filter(
+      (path) =>
+        canAccessPath(currentUser.appRole, path) && !openTabs.includes(path),
+    );
+  }, [currentUser, openTabs]);
+
+  const handleCloseTab = (tabPath: string) => {
+    setOpenTabs((prev) => {
+      const filtered = prev.filter((p) => p !== tabPath);
+      const nextTabs = filtered.length > 0 ? filtered : ["/"];
+      if (typeof window !== "undefined") {
+        try {
+          window.sessionStorage.setItem("iconguard_open_tabs", JSON.stringify(nextTabs));
+        } catch {}
+      }
+      if (currentPath === tabPath) {
+        const nextTarget = nextTabs[nextTabs.length - 1] ?? "/";
+        void navigate({ to: nextTarget as any });
+      }
+      return nextTabs;
+    });
+  };
+
+  const handleOpenNewTab = (tabPath: string) => {
+    setOpenTabs((prev) => {
+      if (!prev.includes(tabPath)) {
+        const updated = [...prev, tabPath];
+        if (typeof window !== "undefined") {
+          try {
+            window.sessionStorage.setItem("iconguard_open_tabs", JSON.stringify(updated));
+          } catch {}
+        }
+        return updated;
+      }
+      return prev;
+    });
+    void navigate({ to: tabPath as any });
   };
 
   return (
@@ -314,7 +423,122 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           )}
         </div>
-        {open && (
+
+        {/* Tab Bar Navigasi Multi-Halaman Sticky */}
+        {roleReady && currentUser && (
+          <div className="flex items-center gap-1.5 overflow-x-auto border-t border-primary/10 bg-[#C2E2FC]/35 px-3 py-1.5 md:px-6 scrollbar-none">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {openTabs
+                .filter((path) => ROUTE_TAB_DEFINITIONS[path] && canAccessPath(currentUser.appRole, path))
+                .map((tabPath) => {
+                  const def = ROUTE_TAB_DEFINITIONS[tabPath];
+                  const isActive = currentPath === tabPath;
+                  const Icon = def.icon;
+                  const isLaporTab = tabPath === "/lapor";
+                  const showDraftDot = isLaporTab && hasLaporDraft;
+
+                  return (
+                    <div
+                      key={tabPath}
+                      onClick={() => {
+                        if (!isActive) void navigate({ to: tabPath as any });
+                      }}
+                      role="tab"
+                      aria-selected={isActive}
+                      tabIndex={0}
+                      className={cn(
+                        "group relative flex shrink-0 items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all select-none cursor-pointer",
+                        isActive
+                          ? "bg-white text-primary shadow-xs border border-primary/25 font-semibold"
+                          : "bg-white/50 text-slate-600 hover:bg-white/85 hover:text-primary border border-transparent",
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          "size-3.5 shrink-0",
+                          isActive ? "text-primary" : "text-slate-500 group-hover:text-primary",
+                        )}
+                      />
+                      <span className="truncate max-w-[130px] md:max-w-[180px]">{def.label}</span>
+
+                      {showDraftDot && (
+                        <span
+                          title="Draf isian formulir tersimpan otomatis"
+                          className="flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300/60"
+                        >
+                          <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          Draf
+                        </span>
+                      )}
+
+                      {openTabs.length > 1 && (
+                        <button
+                          type="button"
+                          title={`Tutup tab ${def.label}`}
+                          aria-label={`Tutup tab ${def.label}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCloseTab(tabPath);
+                          }}
+                          className="ml-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition-colors dark:hover:bg-slate-700"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Quick launcher untuk tab yang belum dibuka */}
+            {closedAccessibleTabs.length > 0 && (
+              <div className="relative shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTabPicker((prev) => !prev)}
+                  title="Buka tab halaman lain"
+                  className="h-7 gap-1 px-2 text-xs text-slate-600 hover:bg-white/80 hover:text-primary"
+                >
+                  <Plus className="size-3.5" />
+                  <span className="hidden sm:inline">Tab Baru</span>
+                </Button>
+                {showTabPicker && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowTabPicker(false)}
+                    />
+                    <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-xl border border-primary/10 bg-white p-1.5 shadow-lg backdrop-blur-md dark:bg-slate-900">
+                      <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Buka Tab Halaman
+                      </p>
+                      {closedAccessibleTabs.map((path) => {
+                        const def = ROUTE_TAB_DEFINITIONS[path];
+                        const Icon = def.icon;
+                        return (
+                          <button
+                            key={path}
+                            type="button"
+                            onClick={() => {
+                              setShowTabPicker(false);
+                              handleOpenNewTab(path);
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 hover:bg-[#EAF5FE] hover:text-primary text-left dark:text-slate-200"
+                          >
+                            <Icon className="size-3.5 text-slate-500" />
+                            <span>{def.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}        {open && (
         <nav className="grid gap-1 border-t border-primary/10 bg-card px-4 py-3 shadow-lg lg:hidden">
             {visibleNav.map((item) => (
               <Link
