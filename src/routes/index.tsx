@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, CheckCircle2, Clock, Gauge, Plus, FileSpreadsheet, Award, UserCheck, Table as TableIcon, Calendar, MapPin, Building2, User, UserX, FileText, ShieldAlert, HardHat, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Gauge, FileSpreadsheet, Award, UserCheck, Table as TableIcon, Calendar, MapPin, Building2, User, UserX, FileText, ShieldAlert, HardHat, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { AppShell, PageHeader } from "@/components/app-shell";
@@ -899,11 +899,6 @@ function Dashboard() {
               >
                 <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
                 Upload Data Excel
-              </Button>
-              <Button asChild>
-                <Link to="/lapor">
-                  <Plus className="size-4" /> Input Pelanggaran
-                </Link>
               </Button>
             </div>
           }

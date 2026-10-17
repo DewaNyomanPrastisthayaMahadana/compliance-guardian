@@ -1,7 +1,7 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { deleteViolationReport, getPelanggaranData, requireRouteAccess } from "@/lib/auth-server";
 import { useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, MapPin, Plus, Search, Trash2, Table as TableIcon, LayoutList, Building2, CheckCircle2, Calendar, Handshake } from "lucide-react";
+import { FileSpreadsheet, MapPin, Search, Trash2, Table as TableIcon, LayoutList, Building2, CheckCircle2, Calendar, Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { ExcelImportModal } from "@/components/excel-import-modal";
@@ -476,11 +476,6 @@ function PelanggaranPage() {
               >
                 <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
                 Upload Data Excel
-              </Button>
-              <Button asChild>
-                <Link to="/lapor">
-                  <Plus className="size-4" /> Input Pelanggaran
-                </Link>
               </Button>
             </div>
           }
