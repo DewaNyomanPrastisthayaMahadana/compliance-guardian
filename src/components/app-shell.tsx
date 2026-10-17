@@ -54,7 +54,6 @@ export const ROUTE_TAB_DEFINITIONS: Record<
   "/portal": { label: "Portal Klarifikasi", icon: MessageSquareShare },
   "/buat-akun": { label: "Buat Akun", icon: UserPlus },
   "/data-akun": { label: "Data Akun", icon: UsersRound },
-  "/pengguna": { label: "Kelola Pengguna", icon: UsersRound },
   "/faq": { label: "FAQ & Bantuan", icon: CircleHelp },
 };
 
@@ -414,55 +413,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Tab Bar Navigasi Multi-Halaman Sticky */}
         {roleReady && currentUser && (
           <div className="flex items-center gap-1.5 overflow-x-auto border-t border-primary/10 bg-[#C2E2FC]/35 px-3 py-1.5 md:px-6 scrollbar-none">
-            <div className="flex items-center gap-1.5 min-w-0">
-              {openTabs
-                .filter((path) => ROUTE_TAB_DEFINITIONS[path] && canAccessPath(currentUser.appRole, path))
-                .map((tabPath) => {
-                  const def = ROUTE_TAB_DEFINITIONS[tabPath];
-                  const isActive = currentPath === tabPath;
-                  const Icon = def.icon;
-                  return (
-                    <div
-                      key={tabPath}
-                      onClick={() => {
-                        if (!isActive) void navigate({ to: tabPath as any });
-                      }}
-                      role="tab"
-                      aria-selected={isActive}
-                      tabIndex={0}
+            {openTabs
+              .filter((path) => ROUTE_TAB_DEFINITIONS[path] && canAccessPath(currentUser.appRole, path))
+              .map((tabPath) => {
+                const def = ROUTE_TAB_DEFINITIONS[tabPath];
+                const isActive = currentPath === tabPath;
+                const Icon = def.icon;
+                return (
+                  <div
+                    key={tabPath}
+                    onClick={() => {
+                      if (!isActive) void navigate({ to: tabPath as any });
+                    }}
+                    role="tab"
+                    aria-selected={isActive}
+                    tabIndex={0}
+                    className={cn(
+                      "group relative flex shrink-0 items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all select-none cursor-pointer",
+                      isActive
+                        ? "bg-white text-primary shadow-xs border border-primary/25 font-semibold"
+                        : "bg-white/50 text-slate-600 hover:bg-white/85 hover:text-primary border border-transparent",
+                    )}
+                  >
+                    <Icon
                       className={cn(
-                        "group relative flex shrink-0 items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-all select-none cursor-pointer",
-                        isActive
-                          ? "bg-white text-primary shadow-xs border border-primary/25 font-semibold"
-                          : "bg-white/50 text-slate-600 hover:bg-white/85 hover:text-primary border border-transparent",
+                        "size-3.5 shrink-0",
+                        isActive ? "text-primary" : "text-slate-500 group-hover:text-primary",
                       )}
-                    >
-                      <Icon
-                        className={cn(
-                          "size-3.5 shrink-0",
-                          isActive ? "text-primary" : "text-slate-500 group-hover:text-primary",
-                        )}
-                      />
-                      <span className="truncate max-w-[130px] md:max-w-[180px]">{def.label}</span>
+                    />
+                    <span className="truncate max-w-[130px] md:max-w-[180px]">{def.label}</span>
 
-                      {openTabs.length > 1 && (
-                        <button
-                          type="button"
-                          title={`Tutup tab ${def.label}`}
-                          aria-label={`Tutup tab ${def.label}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCloseTab(tabPath);
-                          }}
-                          className="ml-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition-colors dark:hover:bg-slate-700"
-                        >
-                          <X className="size-3" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
+                    {openTabs.length > 1 && (
+                      <button
+                        type="button"
+                        title={`Tutup tab ${def.label}`}
+                        aria-label={`Tutup tab ${def.label}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCloseTab(tabPath);
+                        }}
+                        className="ml-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition-colors dark:hover:bg-slate-700"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
 
             {/* Quick launcher untuk tab yang belum dibuka */}
             {closedAccessibleTabs.length > 0 && (
