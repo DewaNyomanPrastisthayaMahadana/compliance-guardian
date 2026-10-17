@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BuatAkunRouteImport } from './routes/buat-akun'
+import { Route as DataAkunRouteImport } from './routes/data-akun'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as LaporRouteImport } from './routes/lapor'
 import { Route as LoginRouteImport } from './routes/login'
@@ -22,6 +24,16 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BuatAkunRoute = BuatAkunRouteImport.update({
+  id: '/buat-akun',
+  path: '/buat-akun',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DataAkunRoute = DataAkunRouteImport.update({
+  id: '/data-akun',
+  path: '/data-akun',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FaqRoute = FaqRouteImport.update({
@@ -67,6 +79,8 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/buat-akun': typeof BuatAkunRoute
+  '/data-akun': typeof DataAkunRoute
   '/faq': typeof FaqRoute
   '/lapor': typeof LaporRoute
   '/login': typeof LoginRoute
@@ -78,6 +92,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/buat-akun': typeof BuatAkunRoute
+  '/data-akun': typeof DataAkunRoute
   '/faq': typeof FaqRoute
   '/lapor': typeof LaporRoute
   '/login': typeof LoginRoute
@@ -90,6 +106,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/buat-akun': typeof BuatAkunRoute
+  '/data-akun': typeof DataAkunRoute
   '/faq': typeof FaqRoute
   '/lapor': typeof LaporRoute
   '/login': typeof LoginRoute
@@ -103,6 +121,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/buat-akun'
+    | '/data-akun'
     | '/faq'
     | '/lapor'
     | '/login'
@@ -114,6 +134,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/buat-akun'
+    | '/data-akun'
     | '/faq'
     | '/lapor'
     | '/login'
@@ -125,6 +147,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/buat-akun'
+    | '/data-akun'
     | '/faq'
     | '/lapor'
     | '/login'
@@ -137,6 +161,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BuatAkunRoute: typeof BuatAkunRoute
+  DataAkunRoute: typeof DataAkunRoute
   FaqRoute: typeof FaqRoute
   LaporRoute: typeof LaporRoute
   LoginRoute: typeof LoginRoute
@@ -154,6 +180,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/buat-akun': {
+      id: '/buat-akun'
+      path: '/buat-akun'
+      fullPath: '/buat-akun'
+      preLoaderRoute: typeof BuatAkunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/data-akun': {
+      id: '/data-akun'
+      path: '/data-akun'
+      fullPath: '/data-akun'
+      preLoaderRoute: typeof DataAkunRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/faq': {
@@ -217,6 +257,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BuatAkunRoute: BuatAkunRoute,
+  DataAkunRoute: DataAkunRoute,
   FaqRoute: FaqRoute,
   LaporRoute: LaporRoute,
   LoginRoute: LoginRoute,

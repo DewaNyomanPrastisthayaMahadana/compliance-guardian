@@ -104,7 +104,7 @@ const faqItems: FaqItem[] = [
     categoryLabel: "Umum & Akses",
     question: "Bagaimana cara mendaftarkan akun baru untuk PIC Mitra atau Petugas?",
     answer:
-      "Pembuatan akun dilakukan secara terpusat oleh Super Admin melalui menu 'Buat Akun' (/pengguna). Super Admin cukup mengisi nama pengguna, alamat email, kata sandi, memilih Role (Super Admin, Mitra, atau Petugas Mitra), serta menentukan nama organisasi/perusahaan mitra terkait.",
+      "Pembuatan akun dilakukan secara terpusat oleh Super Admin melalui menu 'Buat Akun' (/buat-akun) dan dapat ditinjau atau dikelola melalui menu 'Data Akun' (/data-akun). Super Admin cukup mengisi nama pengguna, alamat email, kata sandi, memilih Role (Super Admin, Mitra, atau Petugas Mitra), serta menentukan nama organisasi/perusahaan mitra terkait.",
   },
   {
     id: "kategori-1",

@@ -31,7 +31,17 @@ export const roleDetails: Record<
 };
 
 const accessiblePaths: Record<AppRole, string[]> = {
-  "super-admin": ["/", "/lapor", "/pelanggaran", "/mitra", "/portal", "/pengguna", "/faq"],
+  "super-admin": [
+    "/",
+    "/lapor",
+    "/pelanggaran",
+    "/mitra",
+    "/portal",
+    "/pengguna",
+    "/buat-akun",
+    "/data-akun",
+    "/faq",
+  ],
   mitra: ["/mitra", "/portal", "/faq"],
   "petugas-mitra": ["/portal", "/faq"],
 };

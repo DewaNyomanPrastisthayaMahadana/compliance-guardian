@@ -7,6 +7,7 @@ import {
   Menu,
   LogOut,
   UsersRound,
+  UserPlus,
   CircleHelp,
   PanelLeftClose,
   PanelLeftOpen,
@@ -37,7 +38,8 @@ const nav = [
   { to: "/pelanggaran", label: "Pelanggaran", icon: FileWarning },
   { to: "/mitra", label: "Scorecard Mitra", icon: Building2 },
   { to: "/portal", label: "Portal Klarifikasi", icon: MessageSquareShare },
-  { to: "/pengguna", label: "Buat Akun", icon: UsersRound },
+  { to: "/buat-akun", label: "Buat Akun", icon: UserPlus },
+  { to: "/data-akun", label: "Data Akun", icon: UsersRound },
   { to: "/faq", label: "FAQ", icon: CircleHelp },
 ] as const;
 
@@ -50,6 +52,8 @@ export const ROUTE_TAB_DEFINITIONS: Record<
   "/pelanggaran": { label: "Data Pelanggaran", icon: FileWarning },
   "/mitra": { label: "Scorecard Mitra", icon: Building2 },
   "/portal": { label: "Portal Klarifikasi", icon: MessageSquareShare },
+  "/buat-akun": { label: "Buat Akun", icon: UserPlus },
+  "/data-akun": { label: "Data Akun", icon: UsersRound },
   "/pengguna": { label: "Kelola Pengguna", icon: UsersRound },
   "/faq": { label: "FAQ & Bantuan", icon: CircleHelp },
 };

@@ -24,7 +24,17 @@ import {
 import type { AppRole } from "@/lib/demo-access";
 
 const appRoles = ["super-admin", "mitra", "petugas-mitra"] as const;
-const routePaths = ["/", "/lapor", "/pelanggaran", "/mitra", "/portal", "/pengguna", "/faq"] as const;
+const routePaths = [
+  "/",
+  "/lapor",
+  "/pelanggaran",
+  "/mitra",
+  "/portal",
+  "/pengguna",
+  "/buat-akun",
+  "/data-akun",
+  "/faq",
+] as const;
 type ProtectedRoutePath = (typeof routePaths)[number];
 
 // ID unik setiap kali server dijalankan ulang (restart/start).
