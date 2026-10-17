@@ -8,6 +8,8 @@ import {
   LogOut,
   UsersRound,
   CircleHelp,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -48,6 +50,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [firstLoginWarnings, setFirstLoginWarnings] = useState<Violation[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [roleReady, setRoleReady] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem("iconguard_sidebar_open");
+      if (saved !== null) return saved === "true";
+    }
+    return true;
+  });
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("iconguard_sidebar_open", String(next));
+      }
+      return next;
+    });
+  };
+
   const currentPath = useRouterState({ select: (state) => state.location.pathname });
   const navigate = useNavigate();
 
@@ -177,20 +197,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <aside className="fixed inset-y-3 left-3 z-50 hidden w-60 flex-col overflow-hidden rounded-3xl border border-primary/10 bg-[#C2E2FC] shadow-sm lg:flex">
-        {roleReady && currentUser && profile && (
-          <div className="flex items-center gap-3 border-b border-primary/10 px-5 py-5">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-              {profile.initials}
-            </div>
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-semibold">{currentUser.name || profile.label}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {currentUser.organization || profile.organization}
-              </p>
-            </div>
-          </div>
+      <aside
+        className={cn(
+          "fixed inset-y-3 left-3 z-50 hidden w-60 flex-col overflow-hidden rounded-3xl border border-primary/10 bg-[#C2E2FC] shadow-sm transition-all duration-300 ease-in-out lg:flex",
+          !sidebarOpen && "-translate-x-[calc(100%+24px)] pointer-events-none opacity-0",
         )}
+      >
+        <div className="flex items-center justify-between border-b border-primary/10 px-4 py-4">
+          {roleReady && currentUser && profile ? (
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-xs">
+                {profile.initials}
+              </div>
+              <div className="min-w-0 leading-tight">
+                <p className="truncate text-sm font-semibold">{currentUser.name || profile.label}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {currentUser.organization || profile.organization}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="min-w-0 leading-tight">
+              <p className="text-sm font-bold text-primary">IconGuard</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            title="Tutup Menu Sidebar"
+            aria-label="Tutup Menu Sidebar"
+            className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-white/70 text-primary transition-all duration-200 hover:bg-white hover:text-primary hover:shadow-xs active:scale-95 cursor-pointer"
+          >
+            <PanelLeftClose className="size-4" />
+          </button>
+        </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
           <p className="px-3 pb-2 text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">
             Menu Utama
@@ -221,8 +261,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </aside>
 
-      <header className="mx-3 bg-transparent text-slate-900 lg:ml-[264px] lg:mr-3">
+      <header
+        className={cn(
+          "sticky top-0 z-30 mx-3 bg-[#EAF5FE]/90 backdrop-blur-md text-slate-900 transition-all duration-300",
+          sidebarOpen ? "lg:ml-[264px] lg:mr-3" : "lg:ml-3 lg:mr-3",
+        )}
+      >
         <div className="flex h-16 items-center gap-3 px-4 md:px-6">
+          {!sidebarOpen && (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title="Buka Menu Sidebar"
+              aria-label="Buka Menu Sidebar"
+              className="hidden lg:flex items-center gap-2 rounded-xl border border-primary/20 bg-[#C2E2FC] px-3.5 py-2 text-xs font-semibold text-primary shadow-xs transition-all duration-200 hover:bg-white hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <PanelLeftOpen className="size-4" />
+              <span>Buka Menu</span>
+            </button>
+          )}
           <img
             src="/logoIconPlus.png"
             alt="Logo PLN Icon Plus"
@@ -287,7 +344,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         )}
       </header>
-      <main className="lg:ml-[264px]">
+      <main className={cn("transition-all duration-300", sidebarOpen ? "lg:ml-[264px]" : "lg:ml-0")}>
         <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
           {!roleReady ? (
             <div className="min-h-[50vh]" aria-busy="true" />
@@ -309,7 +366,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </main>
-      <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground lg:ml-[264px]">
+      <footer
+        className={cn(
+          "border-t border-border py-6 text-center text-xs text-muted-foreground transition-all duration-300",
+          sidebarOpen ? "lg:ml-[264px]" : "lg:ml-0",
+        )}
+      >
         IconGuard · Divisi Material dan Jasa — PT PLN Icon Plus
       </footer>
     </div>
