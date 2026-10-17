@@ -114,11 +114,56 @@ function PelanggaranPage() {
   const [q, setQ] = useState("");
   const [selectedSbu, setSelectedSbu] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>("SEMUA");
   const [selectedMitra, setSelectedMitra] = useState<string>("SEMUA");
   const [selectedId, setSelectedId] = useState("");
   const [storedEvidence, setStoredEvidence] = useState<string[]>([]);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "pivot">("list");
+
+  // Helper memformat tanggal ke format konsisten (e.g. "22 Jan 2026")
+  const formatDisplayDate = (dateRaw?: string): string => {
+    if (!dateRaw || dateRaw === "—" || dateRaw === "Hari ini") return "";
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    const s = String(dateRaw).trim();
+
+    // Sudah dalam format "22 Jan 2026"
+    const mWord = s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
+    if (mWord) {
+      const d = parseInt(mWord[1], 10);
+      const m = mWord[2];
+      const y = mWord[3];
+      return `${d} ${m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()} ${y}`;
+    }
+
+    // Format ISO "YYYY-MM-DD" atau "YYYY-MM-DDTHH:mm:ss"
+    const mIso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (mIso) {
+      const y = mIso[1];
+      const m = parseInt(mIso[2], 10);
+      const d = parseInt(mIso[3], 10);
+      if (m >= 1 && m <= 12) {
+        return `${d} ${months[m - 1]} ${y}`;
+      }
+    }
+
+    // Format "DD/MM/YYYY" atau "DD-MM-YYYY"
+    const mSlash = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+    if (mSlash) {
+      const d = parseInt(mSlash[1], 10);
+      const m = parseInt(mSlash[2], 10);
+      const y = mSlash[3];
+      if (m >= 1 && m <= 12) {
+        return `${d} ${months[m - 1]} ${y}`;
+      }
+    }
+
+    return s;
+  };
+
+  const getViolationDate = (v: Violation): string => {
+    return formatDisplayDate(v.tanggalCek || v.createdAt) || (v.tanggalCek || v.createdAt || "");
+  };
 
   // Helper ekstrak bulan dari string tanggal
   const getMonthKey = (dateRaw?: string): string => {
@@ -200,7 +245,55 @@ function PelanggaranPage() {
     }));
   }, [visibleViolations, selectedSbu]);
 
-  // Daftar Mitra yang tersedia untuk SBU & Bulan terpilih
+  // Daftar tanggal yang tersedia untuk SBU & Bulan terpilih
+  const availableDateList = useMemo(() => {
+    const counts: Record<string, number> = {};
+
+    visibleViolations.forEach((v) => {
+      if (selectedSbu && selectedSbu !== "SEMUA" && getSbuKey(v) !== selectedSbu) return;
+      const m = getMonthKey(v.tanggalCek || v.createdAt);
+      if (selectedMonth && selectedMonth !== "SEMUA" && m !== selectedMonth) return;
+      const d = getViolationDate(v);
+      if (d && d !== "—" && d !== "Hari ini") {
+        counts[d] = (counts[d] || 0) + 1;
+      }
+    });
+
+    const parseSortDate = (dStr: string): number => {
+      const months = ["jan", "feb", "mar", "apr", "mei", "jun", "jul", "agu", "sep", "okt", "nov", "des"];
+      const match = dStr.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
+      if (match) {
+        const day = parseInt(match[1], 10);
+        const mIdx = months.indexOf(match[2].toLowerCase());
+        const year = parseInt(match[3], 10);
+        if (mIdx >= 0) {
+          return new Date(year, mIdx, day).getTime();
+        }
+      }
+      const t = new Date(dStr).getTime();
+      return isNaN(t) ? 0 : t;
+    };
+
+    return Object.entries(counts)
+      .map(([tanggal, count]) => ({ tanggal, count }))
+      .sort((a, b) => parseSortDate(b.tanggal) - parseSortDate(a.tanggal));
+  }, [visibleViolations, selectedSbu, selectedMonth]);
+
+  const availableDateTotalCount = useMemo(() => {
+    return availableDateList.reduce((acc, curr) => acc + curr.count, 0);
+  }, [availableDateList]);
+
+  // Reset filter tanggal ke SEMUA jika tanggal yang dipilih sebelumnya tidak ada di SBU/Bulan saat ini
+  useEffect(() => {
+    if (selectedDate && selectedDate !== "SEMUA") {
+      const exists = availableDateList.some((d) => d.tanggal === selectedDate);
+      if (!exists) {
+        setSelectedDate("SEMUA");
+      }
+    }
+  }, [availableDateList, selectedDate]);
+
+  // Daftar Mitra yang tersedia untuk SBU, Bulan, dan Tanggal terpilih
   const availableMitraList = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -208,6 +301,8 @@ function PelanggaranPage() {
       if (selectedSbu && selectedSbu !== "SEMUA" && getSbuKey(v) !== selectedSbu) return;
       const m = getMonthKey(v.tanggalCek || v.createdAt);
       if (selectedMonth && selectedMonth !== "SEMUA" && m !== selectedMonth) return;
+      const d = getViolationDate(v);
+      if (selectedDate && selectedDate !== "SEMUA" && d !== selectedDate) return;
       const mName = (v.mitra || "").trim();
       if (mName) {
         counts[mName] = (counts[mName] || 0) + 1;
@@ -217,13 +312,13 @@ function PelanggaranPage() {
     return Object.entries(counts)
       .map(([nama, count]) => ({ nama, count }))
       .sort((a, b) => b.count - a.count || a.nama.localeCompare(b.nama));
-  }, [visibleViolations, selectedSbu, selectedMonth]);
+  }, [visibleViolations, selectedSbu, selectedMonth, selectedDate]);
 
   const availableMitraTotalCount = useMemo(() => {
     return availableMitraList.reduce((acc, curr) => acc + curr.count, 0);
   }, [availableMitraList]);
 
-  // Reset filter mitra ke SEMUA jika mitra yang dipilih sebelumnya tidak ada di SBU/Bulan saat ini
+  // Reset filter mitra ke SEMUA jika mitra yang dipilih sebelumnya tidak ada di SBU/Bulan/Tanggal saat ini
   useEffect(() => {
     if (selectedMitra && selectedMitra !== "SEMUA") {
       const exists = availableMitraList.some(
@@ -254,22 +349,53 @@ function PelanggaranPage() {
   const list = useMemo(
     () => {
       if (!selectedSbu || !selectedMonth) return [];
+      const searchTokens = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
       return visibleViolations.filter((v) => {
         const matchesSbu = selectedSbu === "SEMUA" || getSbuKey(v) === selectedSbu;
         const vMonth = getMonthKey(v.tanggalCek || v.createdAt);
         const matchesMonth = selectedMonth === "SEMUA" || vMonth === selectedMonth;
+        const vDate = getViolationDate(v);
+        const matchesDate =
+          !selectedDate ||
+          selectedDate === "SEMUA" ||
+          vDate === selectedDate;
         const matchesMitra =
           !selectedMitra ||
           selectedMitra === "SEMUA" ||
           v.mitra.trim().toLowerCase() === selectedMitra.trim().toLowerCase();
         const matchesTab = matches(v, filter);
-        const matchesSearch = (v.mitra + v.petugas + v.jenis + v.id + (v.idPa ?? "") + (v.sbu ?? "") + (v.lokasi ?? ""))
-          .toLowerCase()
-          .includes(q.toLowerCase());
-        return matchesSbu && matchesMonth && matchesMitra && matchesTab && matchesSearch;
+
+        // Pencarian mencakup Mitra, Petugas Mitra, Petugas QC SBU, Petugas Monitoring Pusat, Jenis Pelanggaran, ID Tiket, ID PA, Lokasi, Catatan, dll.
+        let matchesSearch = true;
+        if (searchTokens.length > 0) {
+          const searchTarget = [
+            v.mitra,
+            v.petugas,
+            v.petugasQc,
+            v.petugasMonitoringPusat,
+            v.jenis,
+            v.id,
+            v.idPa,
+            v.sbu,
+            v.lokasi,
+            v.tanggalCek,
+            v.createdAt,
+            v.catatan,
+            v.kp,
+            v.idFat,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+          matchesSearch = searchTokens.every((token) => searchTarget.includes(token));
+        }
+
+        return matchesSbu && matchesMonth && matchesDate && matchesMitra && matchesTab && matchesSearch;
       });
     },
-    [visibleViolations, selectedSbu, selectedMonth, selectedMitra, filter, q],
+    [visibleViolations, selectedSbu, selectedMonth, selectedDate, selectedMitra, filter, q],
   );
 
   const activeSelectedId = list.some((v) => v.id === selectedId)
@@ -419,6 +545,26 @@ function PelanggaranPage() {
                 </Select>
               </div>
 
+              {/* Filter Pilih Tanggal */}
+              <div className="flex items-center gap-2">
+                <Select value={selectedDate} onValueChange={(val) => setSelectedDate(val)}>
+                  <SelectTrigger className="w-auto min-w-[185px] h-9 px-3.5 text-xs font-semibold bg-background border-border gap-2">
+                    <Calendar className="mr-0.5 size-4 text-primary shrink-0" />
+                    <SelectValue placeholder="Pilih Tanggal" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="SEMUA" className="text-xs font-semibold text-primary">
+                      🗓️ Semua Tanggal ({availableDateTotalCount} Tiket)
+                    </SelectItem>
+                    {availableDateList.map((d) => (
+                      <SelectItem key={d.tanggal} value={d.tanggal} className="text-xs">
+                        {d.tanggal} ({d.count} Tiket)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Filter Pilih Mitra */}
               <div className="flex items-center gap-2">
                 <Select value={selectedMitra} onValueChange={(val) => setSelectedMitra(val)}>
@@ -450,12 +596,12 @@ function PelanggaranPage() {
               </Tabs>
             </div>
 
-            <div className="relative w-full sm:max-w-xs">
+            <div className="relative w-full sm:max-w-sm">
               <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Cari mitra, petugas, tiket..."
+                placeholder="Cari mitra, petugas, QC SBU, monitoring pusat, tiket..."
                 className="pl-9 h-9 text-xs"
               />
             </div>
@@ -482,12 +628,13 @@ function PelanggaranPage() {
                 </span>
                 <StatusPill tone={severityTone(v.severity)}>{v.severity}</StatusPill>
                 <StatusPill tone={statusTone(v.status)}>{v.status}</StatusPill>
-                <span className="ml-auto text-xs text-muted-foreground">{v.createdAt}</span>
+                <span className="ml-auto text-xs text-muted-foreground">{getViolationDate(v) || v.createdAt}</span>
               </div>
               <p className="mt-2 font-semibold">{v.jenis}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 <span className="font-medium text-foreground">{v.mitra}</span> · Petugas Mitra: {v.petugas}
                 {v.petugasQc && v.petugasQc !== v.sbu && !sbuOptions.some((s) => s.code === v.petugasQc) ? ` · QC SBU: ${v.petugasQc}` : ""}
+                {v.petugasMonitoringPusat ? ` · Monitoring Pusat: ${v.petugasMonitoringPusat}` : ""}
               </p>
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <MapPin className="size-3" /> {v.lokasi} · deadline {v.deadline}
@@ -516,6 +663,8 @@ function PelanggaranPage() {
                       selectedSbu === "SEMUA" ? "Semua SBU" : `SBU ${selectedSbu}`
                     }${
                       selectedMonth === "SEMUA" ? "" : ` di bulan ${selectedMonth}`
+                    }${
+                      selectedDate && selectedDate !== "SEMUA" ? ` pada tanggal ${selectedDate}` : ""
                     }${
                       selectedMitra && selectedMitra !== "SEMUA" ? ` pada Mitra ${selectedMitra}` : ""
                     } pada kriteria filter ini.`}
@@ -569,11 +718,15 @@ function PelanggaranPage() {
                     : "Belum dicatat"
                 }
               />
-              {selected.petugasMonitoringPusat && (
-                <Detail label="Petugas Monitoring Pusat" value={selected.petugasMonitoringPusat} />
-              )}
+              <Detail
+                label="Petugas Monitoring Pusat"
+                value={selected.petugasMonitoringPusat || "Belum dicatat"}
+              />
               {selected.tanggalCek && (
-                <Detail label="Tanggal Cek / Inspeksi" value={selected.tanggalCek} />
+                <Detail
+                  label="Tanggal Cek / Inspeksi"
+                  value={formatDisplayDate(selected.tanggalCek) || selected.tanggalCek}
+                />
               )}
               {selected.tanggalAktivasi && (
                 <Detail label="Tanggal Aktivasi" value={selected.tanggalAktivasi} />
