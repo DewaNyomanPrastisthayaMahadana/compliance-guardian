@@ -23,7 +23,7 @@ import {
 } from "@/lib/violations-db";
 import type { AppRole } from "@/lib/demo-access";
 
-const appRoles = ["super-admin", "mitra", "petugas-mitra"] as const;
+const appRoles = ["super-admin", "petugas-sbu", "mitra", "petugas-mitra"] as const;
 const routePaths = [
   "/",
   "/lapor",
@@ -43,14 +43,16 @@ const SERVER_BOOT_ID = `boot-${Date.now()}-${Math.random().toString(36).slice(2,
 
 const routeAccess: Record<AppRole, readonly (typeof routePaths)[number][]> = {
   "super-admin": routePaths,
-  mitra: ["/mitra", "/portal", "/faq"],
-  "petugas-mitra": ["/portal", "/faq"],
+  "petugas-sbu": ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
+  mitra: ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
+  "petugas-mitra": ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
 };
 
 const roleLanding: Record<AppRole, "/" | "/portal"> = {
   "super-admin": "/",
-  mitra: "/portal",
-  "petugas-mitra": "/portal",
+  "petugas-sbu": "/",
+  mitra: "/",
+  "petugas-mitra": "/",
 };
 
 function getRequestAuth() {
@@ -92,6 +94,7 @@ export const getCurrentAuthUser = createServerFn({ method: "GET" }).handler(asyn
     email: signedInUser.email,
     appRole: signedInUser.appRole as AppRole,
     organization: signedInUser.organization ?? "",
+    sbu: (signedInUser as any).sbu ?? "",
     bootId: SERVER_BOOT_ID,
   };
 });
@@ -352,6 +355,7 @@ export const listManagedUsers = createServerFn({ method: "GET" }).handler(async 
       email: user.email,
       appRole: user.appRole,
       organization: user.organization,
+      sbu: user.sbu,
       banned: user.banned,
     })
     .from(user)
@@ -364,14 +368,23 @@ export const createManagedUser = createServerFn({ method: "POST" })
       .object({
         name: z.string().trim().min(2).max(100),
         email: z.email().max(254),
-        password: z.string().min(12).max(128),
+        password: z.string().min(8).max(128),
         appRole: z.enum(appRoles),
+        sbu: z.string().trim().max(100).optional(),
         organization: z.string().trim().max(160).optional(),
       })
       .refine((data) => data.appRole !== "mitra" || Boolean(data.organization), {
         path: ["organization"],
         message: "Nama perusahaan wajib untuk akun Mitra.",
-      }),
+      })
+      .refine(
+        (data) =>
+          data.appRole === "super-admin" || Boolean(data.sbu),
+        {
+          path: ["sbu"],
+          message: "Wilayah SBU wajib dipilih untuk akun Petugas SBU, Mitra, dan Petugas Mitra.",
+        },
+      ),
   )
   .handler(async ({ data }) => {
     const { request, auth } = getRequestAuth();
@@ -387,16 +400,27 @@ export const createManagedUser = createServerFn({ method: "POST" })
         data: {
           appRole: data.appRole,
           organization:
-            data.appRole === "super-admin" ? "PT PLN Icon Plus" : data.organization || null,
+            data.appRole === "super-admin"
+              ? "PT PLN Icon Plus"
+              : data.organization || null,
+          sbu: data.sbu || null,
         },
       },
     });
+
+    if (data.sbu) {
+      try {
+        const db = getAuthDb(request);
+        await db.update(user).set({ sbu: data.sbu }).where(eq(user.id, result.user.id));
+      } catch {}
+    }
 
     return {
       id: result.user.id,
       name: result.user.name,
       email: result.user.email,
       appRole: data.appRole,
+      sbu: data.sbu ?? "",
       organization: data.organization ?? "",
       banned: false,
     };
@@ -407,7 +431,8 @@ export const updateManagedUser = createServerFn({ method: "POST" })
     z
       .object({
         id: z.string().min(1).max(128),
-        appRole: z.enum(["mitra", "petugas-mitra"]),
+        appRole: z.enum(["petugas-sbu", "mitra", "petugas-mitra"]),
+        sbu: z.string().trim().max(100).optional(),
         organization: z.string().trim().max(160).optional(),
       })
       .refine((data) => data.appRole !== "mitra" || Boolean(data.organization), {
@@ -427,7 +452,7 @@ export const updateManagedUser = createServerFn({ method: "POST" })
       .limit(1);
 
     if (!managedUser) throw new Error("Akun tidak ditemukan.");
-    if (!["mitra", "petugas-mitra"].includes(managedUser.appRole)) {
+    if (!["petugas-sbu", "mitra", "petugas-mitra"].includes(managedUser.appRole)) {
       throw new Error("Role akun ini tidak dapat diubah dari halaman pengguna.");
     }
 
@@ -436,6 +461,7 @@ export const updateManagedUser = createServerFn({ method: "POST" })
       .set({
         appRole: data.appRole,
         organization: data.organization || null,
+        sbu: data.sbu || null,
         updatedAt: new Date(),
       })
       .where(eq(user.id, data.id))
@@ -443,7 +469,7 @@ export const updateManagedUser = createServerFn({ method: "POST" })
 
     if (!updatedUser) throw new Error("Perubahan role akun gagal disimpan.");
 
-    return { id: updatedUser.id, appRole: data.appRole };
+    return { id: updatedUser.id, appRole: data.appRole, sbu: data.sbu };
   });
 
 export const deleteManagedUser = createServerFn({ method: "POST" })

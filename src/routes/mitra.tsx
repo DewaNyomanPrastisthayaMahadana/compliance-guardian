@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { getMitraScorecardData, requireRouteAccess } from "@/lib/auth-server";
+import { getCurrentAuthUser, getMitraScorecardData, requireRouteAccess } from "@/lib/auth-server";
 import { Download, Users, ChevronRight, CheckCircle2, ShieldAlert, ChevronDown, Search, Building2, Filter } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-pill";
@@ -89,6 +89,16 @@ function MitraPage() {
     window.addEventListener("iconguard-data-hydrated", onHydrated);
     void hydrateCustomDataFromIndexedDB();
     return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
+  }, []);
+
+  useEffect(() => {
+    void getCurrentAuthUser().then((u) => {
+      if (!u) return;
+      const sbuCode = getSbuInfo(u.sbu || u.organization).code;
+      if (sbuCode && sbuCode !== "—") {
+        setSelectedSbuFilter(sbuCode);
+      }
+    });
   }, []);
 
   const allViolations = useMemo(() => {

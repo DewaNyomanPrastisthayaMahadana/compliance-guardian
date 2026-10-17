@@ -53,6 +53,18 @@ export function getAuthEnvironment(request?: Request): AuthEnvironment {
   };
 }
 
+let schemaChecked = false;
+async function ensureSchemaUpdated(p: mysql.Pool) {
+  if (schemaChecked) return;
+  schemaChecked = true;
+  try {
+    await p.query("ALTER TABLE `user` MODIFY COLUMN `appRole` VARCHAR(50) NOT NULL DEFAULT 'mitra'");
+  } catch {}
+  try {
+    await p.query("ALTER TABLE `user` ADD COLUMN `sbu` VARCHAR(100) NULL AFTER `organization`");
+  } catch {}
+}
+
 export function getAuthDb(request?: Request) {
   if (!pool) {
     const env = getAuthEnvironment(request);
@@ -66,6 +78,7 @@ export function getAuthDb(request?: Request) {
       connectionLimit: 10,
       queueLimit: 0,
     });
+    void ensureSchemaUpdated(pool);
   }
 
   if (!database) {
@@ -174,6 +187,7 @@ export function createAuth(request: Request) {
       additionalFields: {
         appRole: { type: "string", required: true, defaultValue: "mitra", input: false },
         organization: { type: "string", required: false, input: false },
+        sbu: { type: "string", required: false, input: false },
       },
     },
     databaseHooks: {

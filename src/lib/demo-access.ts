@@ -1,7 +1,8 @@
-export type AppRole = "super-admin" | "mitra" | "petugas-mitra";
+export type AppRole = "super-admin" | "petugas-sbu" | "mitra" | "petugas-mitra";
 
 export const roleOptions = [
   { value: "super-admin", label: "Super Admin" },
+  { value: "petugas-sbu", label: "Petugas SBU" },
   { value: "mitra", label: "Mitra" },
   { value: "petugas-mitra", label: "Petugas Mitra" },
 ] as const satisfies readonly { value: AppRole; label: string }[];
@@ -16,17 +17,23 @@ export const roleDetails: Record<
     initials: "SA",
     landingPath: "/",
   },
+  "petugas-sbu": {
+    label: "Petugas SBU",
+    organization: "PLN Icon Plus · Wilayah SBU",
+    initials: "QC",
+    landingPath: "/",
+  },
   mitra: {
     label: "Mitra",
-    organization: "Perusahaan mitra",
+    organization: "Perusahaan Mitra",
     initials: "MT",
-    landingPath: "/portal",
+    landingPath: "/",
   },
   "petugas-mitra": {
     label: "Petugas Mitra",
-    organization: "Petugas Mitra",
+    organization: "Petugas Lapangan Mitra",
     initials: "PM",
-    landingPath: "/portal",
+    landingPath: "/",
   },
 };
 
@@ -42,10 +49,11 @@ const accessiblePaths: Record<AppRole, string[]> = {
     "/data-akun",
     "/faq",
   ],
-  mitra: ["/mitra", "/portal", "/faq"],
-  "petugas-mitra": ["/portal", "/faq"],
+  "petugas-sbu": ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
+  mitra: ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
+  "petugas-mitra": ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
 };
 
 export function canAccessPath(role: AppRole, path: string) {
-  return accessiblePaths[role].includes(path);
+  return accessiblePaths[role]?.includes(path) ?? false;
 }

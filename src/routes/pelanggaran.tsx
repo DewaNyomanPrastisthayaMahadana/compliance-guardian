@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { deleteViolationReport, getPelanggaranData, requireRouteAccess } from "@/lib/auth-server";
+import { deleteViolationReport, getCurrentAuthUser, getPelanggaranData, requireRouteAccess } from "@/lib/auth-server";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, MapPin, Search, Trash2, Table as TableIcon, LayoutList, Building2, CheckCircle2, Calendar, Handshake } from "lucide-react";
 import { toast } from "sonner";
@@ -39,6 +39,7 @@ import {
   getCustomViolationsFromStorage,
   hydrateCustomDataFromIndexedDB,
   isRealViolation,
+  getSbuInfo,
   sbuOptions,
   type Violation,
 } from "@/lib/iconguard-data";
@@ -120,6 +121,19 @@ function PelanggaranPage() {
   const [storedEvidence, setStoredEvidence] = useState<string[]>([]);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "pivot">("list");
+
+  useEffect(() => {
+    void getCurrentAuthUser().then((u) => {
+      if (!u) return;
+      const sbuCode = getSbuInfo(u.sbu || u.organization).code;
+      if (sbuCode && sbuCode !== "—") {
+        setSelectedSbu(sbuCode);
+      }
+      if ((u.appRole === "mitra" || u.appRole === "petugas-mitra") && u.organization) {
+        setSelectedMitra(u.organization);
+      }
+    });
+  }, []);
 
   // Helper memformat tanggal ke format konsisten (e.g. "22 Jan 2026")
   const formatDisplayDate = (dateRaw?: string): string => {

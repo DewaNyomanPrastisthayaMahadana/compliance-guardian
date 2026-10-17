@@ -28,6 +28,7 @@ export const user = mysqlTable(
     banExpires: timestamp("banExpires", { fsp: 3 }),
     appRole: varchar("appRole", { length: 50 }).notNull().default("mitra"),
     organization: varchar("organization", { length: 255 }),
+    sbu: varchar("sbu", { length: 100 }),
   },
   (table) => [uniqueIndex("user_email_unique").on(table.email)],
 );

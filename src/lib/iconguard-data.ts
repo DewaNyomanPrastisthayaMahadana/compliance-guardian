@@ -918,7 +918,7 @@ export function getCustomMitraListFromStorage(): Mitra[] {
   }
 }
 
-function saveCustomViolationToStorage(item: Violation) {
+export function saveCustomViolationToStorage(item: Violation) {
   if (typeof window === "undefined") return;
   if (!isRealViolation(item)) return;
   try {

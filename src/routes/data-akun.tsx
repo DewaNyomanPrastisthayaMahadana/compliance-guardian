@@ -12,6 +12,7 @@ import {
   Mail,
   User,
   Filter,
+  MapPin,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ import {
   updateManagedUser,
 } from "@/lib/auth-server";
 import { roleOptions, type AppRole } from "@/lib/demo-access";
+import { sbuOptions, getSbuInfo } from "@/lib/iconguard-data";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
@@ -63,6 +65,8 @@ function getRoleTone(role: AppRole): "sky" | "emerald" | "amber" | "slate" {
   switch (role) {
     case "super-admin":
       return "sky";
+    case "petugas-sbu":
+      return "sky";
     case "mitra":
       return "emerald";
     case "petugas-mitra":
@@ -83,7 +87,8 @@ function DataAkunPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editRole, setEditRole] = useState<"mitra" | "petugas-mitra">("mitra");
+  const [editRole, setEditRole] = useState<"petugas-sbu" | "mitra" | "petugas-mitra">("mitra");
+  const [editSbu, setEditSbu] = useState("");
   const [editOrganization, setEditOrganization] = useState("");
   const [userPendingDelete, setUserPendingDelete] = useState<(typeof users)[number] | null>(null);
 
@@ -104,6 +109,7 @@ function DataAkunPage() {
     return {
       all: users.length,
       superAdmin: users.filter((u) => u.appRole === "super-admin").length,
+      petugasSbu: users.filter((u) => u.appRole === "petugas-sbu").length,
       mitra: users.filter((u) => u.appRole === "mitra").length,
       petugasMitra: users.filter((u) => u.appRole === "petugas-mitra").length,
     };
@@ -114,7 +120,7 @@ function DataAkunPage() {
       const matchesRole = roleFilter === "ALL" || user.appRole === roleFilter;
       const matchesQuery =
         !query.trim() ||
-        `${user.name} ${user.email} ${user.appRole} ${user.organization ?? ""}`
+        `${user.name} ${user.email} ${user.appRole} ${user.sbu ?? ""} ${user.organization ?? ""}`
           .toLowerCase()
           .includes(query.toLowerCase());
       return matchesRole && matchesQuery;
@@ -122,14 +128,15 @@ function DataAkunPage() {
   }, [users, roleFilter, query]);
 
   const startEditingUser = (user: (typeof users)[number]) => {
-    if (user.appRole !== "mitra" && user.appRole !== "petugas-mitra") return;
+    if (user.appRole === "super-admin") return;
     setEditingUserId(user.id);
-    setEditRole(user.appRole);
+    setEditRole(user.appRole as "petugas-sbu" | "mitra" | "petugas-mitra");
+    setEditSbu(user.sbu ?? "");
     setEditOrganization(user.organization ?? "");
   };
 
   const handleUpdateUser = async (userId: string) => {
-    if (editRole === "mitra" && !editOrganization.trim()) {
+    if ((editRole === "mitra" || editRole === "petugas-mitra") && !editOrganization.trim()) {
       toast.error("Nama perusahaan/mitra wajib diisi untuk akun Mitra.");
       return;
     }
@@ -137,11 +144,16 @@ function DataAkunPage() {
 
     try {
       await updateManagedUser({
-        data: { id: userId, appRole: editRole, organization: editOrganization },
+        data: {
+          id: userId,
+          appRole: editRole,
+          sbu: editSbu,
+          organization: editOrganization,
+        },
       });
       await refreshUsers();
       setEditingUserId(null);
-      toast.success("Role & data organisasi akun berhasil diperbarui!");
+      toast.success("Role & data akun berhasil diperbarui!");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal menyimpan perubahan.");
     } finally {
@@ -204,6 +216,17 @@ function DataAkunPage() {
               <span>Super Admin</span>
               <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
                 {counts.superAdmin}
+              </span>
+            </Button>
+            <Button
+              size="sm"
+              variant={roleFilter === "petugas-sbu" ? "default" : "outline"}
+              onClick={() => setRoleFilter("petugas-sbu")}
+              className="h-8 text-xs font-semibold gap-1.5"
+            >
+              <span>Petugas SBU</span>
+              <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
+                {counts.petugasSbu}
               </span>
             </Button>
             <Button
@@ -290,6 +313,7 @@ function DataAkunPage() {
                       <TableHead className="font-bold text-xs">Nama &amp; Pengguna</TableHead>
                       <TableHead className="font-bold text-xs">Email Kerja</TableHead>
                       <TableHead className="font-bold text-xs">Role</TableHead>
+                      <TableHead className="font-bold text-xs">Wilayah SBU</TableHead>
                       <TableHead className="font-bold text-xs">Organisasi / Mitra</TableHead>
                       <TableHead className="w-28 text-right font-bold text-xs">Aksi</TableHead>
                     </TableRow>
@@ -336,6 +360,7 @@ function DataAkunPage() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
+                                  <SelectItem value="petugas-sbu" className="text-xs">Petugas SBU</SelectItem>
                                   <SelectItem value="mitra" className="text-xs">Mitra</SelectItem>
                                   <SelectItem value="petugas-mitra" className="text-xs">Petugas Mitra</SelectItem>
                                 </SelectContent>
@@ -349,10 +374,44 @@ function DataAkunPage() {
 
                           <TableCell>
                             {isEditing ? (
+                              <Select value={editSbu} onValueChange={setEditSbu}>
+                                <SelectTrigger className="h-7 text-xs w-[140px]">
+                                  <SelectValue placeholder="Pilih SBU" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {sbuOptions.map((s) => (
+                                    <SelectItem key={s.code} value={s.code} className="text-xs">
+                                      {s.code} — {s.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-[#C2E2FC]/40 px-2 py-0.5 text-xs font-semibold text-primary">
+                                  <MapPin className="size-3 text-primary/70 shrink-0" />
+                                  <span className="truncate max-w-[150px]">
+                                    {user.sbu
+                                      ? (sbuOptions.find((s) => s.code === user.sbu)?.label
+                                          ? `${user.sbu} · ${sbuOptions.find((s) => s.code === user.sbu)?.label}`
+                                          : user.sbu)
+                                      : getSbuInfo(user.organization).code !== "—"
+                                      ? getSbuInfo(user.organization).full
+                                      : user.appRole === "super-admin"
+                                      ? "Semua SBU (Nasional)"
+                                      : "—"}
+                                  </span>
+                                </span>
+                              </div>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            {isEditing ? (
                               <Input
                                 value={editOrganization}
                                 onChange={(e) => setEditOrganization(e.target.value)}
-                                placeholder="Nama Mitra / Perusahaan"
+                                placeholder="Nama Mitra / Unit SBU"
                                 className="h-7 text-xs max-w-xs"
                               />
                             ) : (

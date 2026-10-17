@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Check, Eye, EyeOff, ShieldCheck, UserPlus, UsersRound, Building2, User, Mail, Lock, Shield } from "lucide-react";
+import { Check, Eye, EyeOff, ShieldCheck, UserPlus, UsersRound, Building2, User, Mail, Lock, Shield, MapPin } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { createManagedUser, requireRouteAccess } from "@/lib/auth-server";
 import { roleOptions, type AppRole } from "@/lib/demo-access";
+import { sbuOptions, sbuMitraMapping } from "@/lib/iconguard-data";
 import { AppShell, PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,19 +31,32 @@ function BuatAkunPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [appRole, setAppRole] = useState<AppRole>("mitra");
+  const [sbu, setSbu] = useState<string>("");
   const [organization, setOrganization] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [createdUser, setCreatedUser] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [createdUser, setCreatedUser] = useState<{ name: string; email: string; role: string; sbu?: string } | null>(null);
 
   const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
     setCreatedUser(null);
 
-    const finalOrg = appRole === "super-admin" ? "PT PLN Icon Plus" : organization.trim();
+    const sbuObj = sbuOptions.find((s) => s.code === sbu);
+    const finalOrg =
+      appRole === "super-admin"
+        ? "PT PLN Icon Plus"
+        : appRole === "petugas-sbu"
+        ? organization.trim() || (sbuObj ? `PLN Icon Plus SBU ${sbuObj.label}` : "PLN Icon Plus SBU")
+        : organization.trim();
 
-    if (appRole === "mitra" && !finalOrg) {
-      toast.error("Nama Mitra / Perusahaan wajib diisi untuk role Mitra.");
+    if ((appRole === "mitra" || appRole === "petugas-mitra") && !finalOrg) {
+      toast.error("Nama Mitra / Perusahaan wajib diisi untuk akun Mitra.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (appRole !== "super-admin" && !sbu) {
+      toast.error("Wilayah SBU wajib dipilih untuk akun ini.");
       setSubmitting(false);
       return;
     }
@@ -54,6 +68,7 @@ function BuatAkunPage() {
           email: email.trim().toLowerCase(),
           password,
           appRole,
+          sbu: sbu === "SEMUA" ? "" : sbu,
           organization: finalOrg,
         },
       });
@@ -62,6 +77,7 @@ function BuatAkunPage() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         role: roleOptions.find((r) => r.value === appRole)?.label || appRole,
+        sbu: sbuObj ? `${sbuObj.code} - ${sbuObj.label}` : undefined,
       });
 
       toast.success("Akun berhasil dibuat dan tersimpan ke database!");
@@ -70,6 +86,7 @@ function BuatAkunPage() {
       setName("");
       setEmail("");
       setPassword("");
+      setSbu("");
       setOrganization("");
       setAppRole("mitra");
     } catch (error) {
@@ -158,7 +175,7 @@ function BuatAkunPage() {
                     </Label>
                     <Input
                       id="create-name"
-                      placeholder="Contoh: Budi Santoso / PT Tapanuli Raya"
+                      placeholder=""
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       minLength={2}
@@ -177,7 +194,7 @@ function BuatAkunPage() {
                     <Input
                       id="create-email"
                       type="email"
-                      placeholder="nama@plniconplus.co.id atau mitra@perusahaan.com"
+                      placeholder=""
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       maxLength={254}
@@ -196,7 +213,7 @@ function BuatAkunPage() {
                       <Input
                         id="create-password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Minimal 8 karakter"
+                        placeholder=""
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         minLength={8}
@@ -229,6 +246,13 @@ function BuatAkunPage() {
                         setAppRole(nextRole);
                         if (nextRole === "super-admin") {
                           setOrganization("PT PLN Icon Plus");
+                          setSbu("SEMUA");
+                        } else if (nextRole === "petugas-sbu") {
+                          if (organization === "PT PLN Icon Plus") setOrganization("");
+                          if (sbu && sbu !== "SEMUA") {
+                            const opt = sbuOptions.find((s) => s.code === sbu);
+                            setOrganization(opt ? `PLN Icon Plus SBU ${opt.label}` : "");
+                          }
                         } else if (organization === "PT PLN Icon Plus") {
                           setOrganization("");
                         }
@@ -247,26 +271,88 @@ function BuatAkunPage() {
                     </Select>
                   </div>
 
-                  {/* Nama Perusahaan / Mitra */}
+                  {/* Wilayah SBU */}
                   <div className="space-y-1.5">
+                    <Label htmlFor="create-sbu" className="text-xs font-semibold flex items-center gap-1.5">
+                      <MapPin className="size-3.5 text-primary" />
+                      Wilayah SBU {appRole !== "super-admin" && <span className="text-destructive">*</span>}
+                    </Label>
+                    <Select
+                      value={sbu}
+                      onValueChange={(val) => {
+                        setSbu(val);
+                        if (appRole === "petugas-sbu") {
+                          const opt = sbuOptions.find((s) => s.code === val);
+                          setOrganization(opt ? `PLN Icon Plus SBU ${opt.label}` : "");
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="create-sbu" className="h-10 text-sm">
+                        <SelectValue placeholder="Pilih Wilayah SBU" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {appRole === "super-admin" && (
+                          <SelectItem value="SEMUA" className="text-sm">
+                            Semua SBU (Nasional / Kantor Pusat)
+                          </SelectItem>
+                        )}
+                        {sbuOptions.map((opt) => (
+                          <SelectItem key={opt.code} value={opt.code} className="text-sm">
+                            {opt.code} — {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Nama Perusahaan / Mitra / Unit SBU */}
+                  <div className="space-y-1.5 sm:col-span-2">
                     <Label htmlFor="create-org" className="text-xs font-semibold flex items-center gap-1.5">
                       <Building2 className="size-3.5 text-primary" />
-                      Organisasi / Nama Mitra {appRole === "mitra" && <span className="text-destructive">*</span>}
+                      {appRole === "petugas-sbu"
+                        ? "Unit / Kantor SBU"
+                        : appRole === "super-admin"
+                        ? "Organisasi / Divisi"
+                        : "Organisasi / Nama Mitra"}{" "}
+                      {(appRole === "mitra" || appRole === "petugas-mitra") && (
+                        <span className="text-destructive">*</span>
+                      )}
                     </Label>
                     <Input
                       id="create-org"
                       value={appRole === "super-admin" ? "PT PLN Icon Plus" : organization}
                       onChange={(e) => setOrganization(e.target.value)}
                       readOnly={appRole === "super-admin"}
-                      placeholder={
-                        appRole === "super-admin"
-                          ? "PT PLN Icon Plus"
-                          : "Contoh: PT Tapanuli Raya Broadband"
-                      }
-                      required={appRole === "mitra"}
+                      placeholder=""
+                      required={appRole === "mitra" || appRole === "petugas-mitra"}
                       maxLength={160}
                       className={`h-10 text-sm ${appRole === "super-admin" ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}`}
                     />
+
+                    {/* Saran Mitra berdasarkan SBU yang dipilih */}
+                    {(appRole === "mitra" || appRole === "petugas-mitra") && sbu && sbuMitraMapping[sbu] && (
+                      <div className="pt-1.5">
+                        <p className="text-[11px] text-muted-foreground mb-1">
+                          Mitra terdaftar di SBU ini (klik untuk memilih):
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {sbuMitraMapping[sbu].map((partner) => (
+                            <button
+                              key={partner.nama}
+                              type="button"
+                              onClick={() => setOrganization(partner.nama)}
+                              className={`text-[11px] rounded-lg px-2.5 py-1 border transition-colors ${
+                                organization === partner.nama
+                                  ? "bg-primary text-primary-foreground border-primary font-semibold"
+                                  : "bg-muted/50 hover:bg-muted text-foreground border-border"
+                              }`}
+                            >
+                              {partner.nama}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -282,6 +368,7 @@ function BuatAkunPage() {
                         setName("");
                         setEmail("");
                         setPassword("");
+                        setSbu("");
                         setOrganization("");
                         setAppRole("mitra");
                       }}
@@ -318,7 +405,17 @@ function BuatAkunPage() {
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary font-mono">SA</span>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Akses penuh untuk Divisi Material & Jasa: melihat Dashboard nasional, upload Excel, input QC pelanggaran, audit trail, kelola akun, dan konfigurasi master data.
+                    Akses penuh untuk Divisi Material &amp; Jasa Kantor Pusat: Dashboard nasional, upload Excel, input QC pelanggaran, audit trail, kelola akun, dan konfigurasi master data.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border/80 bg-muted/30 p-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sky-600 dark:text-sky-400">Petugas SBU</span>
+                    <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400 font-mono">QC</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Akses operasional regional: Dashboard utama, Data Pelanggaran, Score Card Mitra, dan memverifikasi klarifikasi tiket yang berada di wilayah SBU-nya.
                   </p>
                 </div>
 
@@ -328,7 +425,7 @@ function BuatAkunPage() {
                     <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono">MT</span>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Diberikan untuk manajemen perusahaan mitra. Dapat melihat scorecard evaluasi perusahaan mereka, statistik penalti, serta mengajukan klarifikasi temuan.
+                    Manajemen perusahaan mitra: Dashboard utama, Data Pelanggaran, Score Card evaluasi mitra, serta Portal Klarifikasi khusus tiket perusahaan dan SBU mereka.
                   </p>
                 </div>
 
@@ -338,7 +435,7 @@ function BuatAkunPage() {
                     <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 font-mono">PM</span>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Diberikan untuk teknisi/petugas lapangan mitra. Akses langsung ke Portal Klarifikasi untuk membalas dan melampirkan bukti perbaikan instalasi.
+                    Teknisi/petugas lapangan mitra: Dashboard utama, Data Pelanggaran, Score Card, dan Portal Klarifikasi untuk mengunggah Berita Acara Klarifikasi &amp; bukti before-after.
                   </p>
                 </div>
               </CardContent>

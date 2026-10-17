@@ -63,6 +63,7 @@ type CurrentUser = {
   email: string;
   appRole: AppRole;
   organization: string;
+  sbu?: string;
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
