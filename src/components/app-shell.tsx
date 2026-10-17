@@ -20,7 +20,6 @@ import { authClient } from "@/lib/auth-client";
 import { getCurrentAuthUser } from "@/lib/auth-server";
 import { canAccessPath, roleDetails, type AppRole } from "@/lib/demo-access";
 import { severityTone, statusTone, violations, type Violation } from "@/lib/iconguard-data";
-import { isLaporDraftActive } from "@/lib/lapor-draft";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import {
@@ -192,23 +191,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return ["/"];
   });
 
-  const [hasLaporDraft, setHasLaporDraft] = useState(false);
   const [showTabPicker, setShowTabPicker] = useState(false);
-
-  // Pantau ketersediaan draf form lapor agar indikator dot selalu sinkron
-  useEffect(() => {
-    const checkDraft = () => {
-      setHasLaporDraft(isLaporDraftActive());
-    };
-    checkDraft();
-
-    window.addEventListener("iconguard-draft-updated", checkDraft);
-    window.addEventListener("storage", checkDraft);
-    return () => {
-      window.removeEventListener("iconguard-draft-updated", checkDraft);
-      window.removeEventListener("storage", checkDraft);
-    };
-  }, []);
 
   // Otomatis tambahkan tab bila berpindah ke halaman yang terdaftar
   useEffect(() => {
@@ -434,9 +417,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   const def = ROUTE_TAB_DEFINITIONS[tabPath];
                   const isActive = currentPath === tabPath;
                   const Icon = def.icon;
-                  const isLaporTab = tabPath === "/lapor";
-                  const showDraftDot = isLaporTab && hasLaporDraft;
-
                   return (
                     <div
                       key={tabPath}
@@ -460,16 +440,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         )}
                       />
                       <span className="truncate max-w-[130px] md:max-w-[180px]">{def.label}</span>
-
-                      {showDraftDot && (
-                        <span
-                          title="Draf isian formulir tersimpan otomatis"
-                          className="flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300/60"
-                        >
-                          <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                          Draf
-                        </span>
-                      )}
 
                       {openTabs.length > 1 && (
                         <button
