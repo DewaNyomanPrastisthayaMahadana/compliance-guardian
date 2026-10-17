@@ -401,69 +401,74 @@ function MitraPage() {
       </div>
 
       {filteredMitraList.length > 0 ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-          {filteredMitraList.map((m, index) => {
-            const zone = zoneOf(m.skor);
-            return (
-              <Card
-                key={m.nama}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedMitraModal(m)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setSelectedMitraModal(m);
-                  }
-                }}
-                className="dashboard-enter flex flex-col justify-between cursor-pointer transition-all duration-200 hover:border-primary/60 hover:shadow-lg hover:-translate-y-0.5 group focus:outline-none focus:ring-2 focus:ring-primary/40"
-                style={{ animationDelay: `${Math.min(index, 6) * 90 + 100}ms` }}
-              >
-                <CardHeader className="pb-3 min-h-[118px] flex flex-col justify-between space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base font-bold leading-snug break-words group-hover:text-primary transition-colors flex-1">
-                      {m.nama}
-                    </CardTitle>
-                    {m.sbuCode && m.sbuCode !== "—" && (
-                      <span className="inline-flex items-center rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-bold text-primary font-mono shrink-0">
-                        SBU {m.sbuCode}
-                      </span>
-                    )}
-                  </div>
-                  <CardDescription className="text-xs break-all leading-relaxed text-muted-foreground flex flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium text-foreground">{m.kontrak}</span>
-                      {m.pic ? <span>· PIC {m.pic}</span> : ""}
+        <div className="overflow-y-auto max-h-[calc(100vh-235px)] min-h-[460px] p-1.5 pr-2.5 pb-6 rounded-2xl scroll-smooth custom-scrollbar">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
+            {filteredMitraList.map((m, index) => {
+              const zone = zoneOf(m.skor);
+              return (
+                <Card
+                  key={m.nama}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedMitraModal(m)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedMitraModal(m);
+                    }
+                  }}
+                  className="dashboard-enter flex flex-col justify-between cursor-pointer transition-all duration-200 hover:border-primary/60 hover:shadow-lg hover:-translate-y-0.5 group focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  style={{ animationDelay: `${Math.min(index, 6) * 90 + 100}ms` }}
+                >
+                  <CardHeader className="pb-3 min-h-[118px] flex flex-col justify-between space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-base font-bold leading-snug break-words group-hover:text-primary transition-colors flex-1">
+                        {m.nama}
+                      </CardTitle>
+                      {m.sbuCode && m.sbuCode !== "—" && (
+                        <span className="inline-flex items-center rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-bold text-primary font-mono shrink-0">
+                          SBU {m.sbuCode}
+                        </span>
+                      )}
                     </div>
-                    {m.sbu && m.sbu !== "—" && (
-                      <div className="flex items-center gap-1.5 text-foreground/80 font-medium">
-                        <Building2 className="size-3 text-primary shrink-0" />
-                        <span className="break-words leading-tight">{m.sbuLabel || m.sbu}</span>
+                    <CardDescription className="text-xs break-all leading-relaxed text-muted-foreground flex flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-medium text-foreground">{m.kontrak}</span>
+                        {m.pic ? <span>· PIC {m.pic}</span> : ""}
                       </div>
-                    )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-0">
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <span className="text-xs text-muted-foreground block mb-0.5">Skor Penalti</span>
-                      <p className="text-3xl font-bold tracking-tight text-foreground">{m.skor}</p>
+                      {m.sbu && m.sbu !== "—" && (
+                        <div className="flex items-center gap-1.5 text-foreground/80 font-medium">
+                          <Building2 className="size-3 text-primary shrink-0" />
+                          <span className="break-words leading-tight">{m.sbuLabel || m.sbu}</span>
+                        </div>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-0">
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <span className="text-xs text-muted-foreground block mb-0.5">Skor Penalti</span>
+                        <p className="text-3xl font-bold tracking-tight text-foreground">{m.skor}</p>
+                      </div>
+                      <StatusPill tone={zone.tone}>{zone.label}</StatusPill>
                     </div>
-                    <StatusPill tone={zone.tone}>{zone.label}</StatusPill>
-                  </div>
-                  <Progress value={Math.min(100, m.skor)} />
-                  <p className="text-xs text-muted-foreground flex items-center justify-between">
-                    <span>{m.pelanggaranAktif} pelanggaran aktif</span>
-                    <span>{m.totalPelanggaran} total tercatat</span>
-                  </p>
-                  <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground group-hover:text-primary transition-colors">
-                    <span className="font-medium">Lihat daftar petugas pelanggar</span>
-                    <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                    <Progress value={Math.min(100, m.skor)} />
+                    <p className="text-xs text-muted-foreground flex items-center justify-between">
+                      <span>{m.pelanggaranAktif} pelanggaran aktif</span>
+                      <span>{m.totalPelanggaran} total tercatat</span>
+                    </p>
+                    <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground group-hover:text-primary transition-colors">
+                      <span className="font-medium">Lihat daftar petugas pelanggar</span>
+                      <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          <div className="pt-6 pb-2 text-center text-xs text-muted-foreground">
+            Menampilkan seluruh {filteredMitraList.length} mitra kepatuhan
+          </div>
         </div>
       ) : (
         <div className="dashboard-enter rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
