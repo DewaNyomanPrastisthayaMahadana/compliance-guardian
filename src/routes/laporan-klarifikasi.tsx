@@ -585,91 +585,90 @@ function LaporanKlarifikasiPage() {
         </div>
 
         {/* Filter Bar & Pencarian */}
-        <Card className="shadow-xs">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              {/* Search Bar */}
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                <Input
-                  placeholder="Cari ID tiket, nama mitra, SBU, petugas mitra, atau penjelasan..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-xs"
-                />
-              </div>
-
-              {/* Dropdown Filters */}
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Filter Status */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground hidden sm:inline">Status:</span>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-36 h-9 text-xs font-medium">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL" className="text-xs">
-                        Semua Status
-                      </SelectItem>
-                      <SelectItem value="Verifikasi" className="text-xs">
-                        Menunggu Verifikasi
-                      </SelectItem>
-                      <SelectItem value="Closed" className="text-xs">
-                        Selesai (Closed)
-                      </SelectItem>
-                      <SelectItem value="Pending" className="text-xs">
-                        Perlu Revisi
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Filter Asal Pengaju */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground hidden sm:inline">Pengaju:</span>
-                  <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="w-40 h-9 text-xs font-medium">
-                      <SelectValue placeholder="Asal Pengaju" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL" className="text-xs">
-                        Semua Pengaju
-                      </SelectItem>
-                      <SelectItem value="petugas-sbu" className="text-xs">
-                        Dari Petugas SBU
-                      </SelectItem>
-                      <SelectItem value="mitra" className="text-xs">
-                        Dari Mitra (PIC)
-                      </SelectItem>
-                      <SelectItem value="petugas-mitra" className="text-xs">
-                        Dari Petugas Mitra
-                      </SelectItem>
-                      <SelectItem value="super-admin" className="text-xs">
-                        Dari Super Admin
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {(statusFilter !== "ALL" || roleFilter !== "ALL" || searchQuery.trim()) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      setStatusFilter("ALL");
-                      setRoleFilter("ALL");
-                      setSearchQuery("");
-                    }}
-                  >
-                    Reset Filter
-                  </Button>
-                )}
-              </div>
+        <div className="rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-xs overflow-hidden">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            {/* Search Bar */}
+            <div className="relative flex-1 min-w-0 max-w-2xl">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Cari ID tiket, nama mitra, SBU, petugas mitra, atau penjelasan..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-xs w-full bg-background"
+              />
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Dropdown Filters */}
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 shrink-0">
+              {/* Filter Status */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Status:</span>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[145px] sm:w-[155px] h-9 text-xs font-medium bg-background">
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL" className="text-xs">
+                      Semua Status
+                    </SelectItem>
+                    <SelectItem value="Verifikasi" className="text-xs">
+                      Menunggu Verifikasi
+                    </SelectItem>
+                    <SelectItem value="Closed" className="text-xs">
+                      Selesai (Closed)
+                    </SelectItem>
+                    <SelectItem value="Pending" className="text-xs">
+                      Perlu Revisi
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filter Asal Pengaju */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Pengaju:</span>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-[155px] sm:w-[165px] h-9 text-xs font-medium bg-background">
+                    <SelectValue placeholder="Semua Pengaju" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL" className="text-xs">
+                      Semua Pengaju
+                    </SelectItem>
+                    <SelectItem value="petugas-sbu" className="text-xs">
+                      Dari Petugas SBU
+                    </SelectItem>
+                    <SelectItem value="mitra" className="text-xs">
+                      Dari Mitra (PIC)
+                    </SelectItem>
+                    <SelectItem value="petugas-mitra" className="text-xs">
+                      Dari Petugas Mitra
+                    </SelectItem>
+                    <SelectItem value="super-admin" className="text-xs">
+                      Dari Super Admin
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(statusFilter !== "ALL" || roleFilter !== "ALL" || searchQuery.trim()) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setStatusFilter("ALL");
+                    setRoleFilter("ALL");
+                    setSearchQuery("");
+                  }}
+                >
+                  <X className="size-3.5 mr-1" />
+                  Reset Filter
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Tabel Laporan Klarifikasi */}
         <Card className="shadow-xs overflow-hidden">
@@ -1130,3 +1129,4 @@ function LaporanKlarifikasiPage() {
     </AppShell>
   );
 }
+
