@@ -1183,7 +1183,7 @@ function Dashboard() {
                 value={selectedMonthJenisDominan}
                 onValueChange={(val) => setSelectedMonthJenisDominan(val)}
               >
-                <SelectTrigger className="w-32 sm:w-36 h-8 text-xs font-semibold">
+                <SelectTrigger className="w-36 sm:w-40 h-8 text-xs font-semibold px-2.5">
                   <Calendar className="mr-1.5 size-3.5 text-primary shrink-0" />
                   <SelectValue placeholder="Semua Bulan" />
                 </SelectTrigger>
@@ -1338,8 +1338,8 @@ function Dashboard() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground hidden sm:inline">Pilih Bulan:</span>
                 <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
-                  <SelectTrigger className="w-28 h-8 text-xs font-semibold">
-                    <Calendar className="mr-1.5 size-3.5 text-primary" />
+                  <SelectTrigger className="w-36 h-8 text-xs font-semibold px-2.5">
+                    <Calendar className="mr-1.5 size-3.5 text-primary shrink-0" />
                     <SelectValue placeholder="Bulan" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1426,7 +1426,7 @@ function Dashboard() {
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">Pilih Evaluasi Bulan:</span>
               <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
-                <SelectTrigger className="w-[130px] h-7 text-xs font-medium bg-background border-border">
+                <SelectTrigger className="w-[140px] h-7 text-xs font-medium bg-background border-border px-2.5">
                   <Calendar className="mr-1.5 size-3.5 text-primary shrink-0" />
                   <SelectValue placeholder="Bulan" />
                 </SelectTrigger>
@@ -1509,7 +1509,7 @@ function Dashboard() {
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">Pilih Evaluasi Bulan:</span>
               <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
-                <SelectTrigger className="w-[130px] h-7 text-xs font-medium bg-background border-border">
+                <SelectTrigger className="w-[140px] h-7 text-xs font-medium bg-background border-border px-2.5">
                   <Calendar className="mr-1.5 size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <SelectValue placeholder="Bulan" />
                 </SelectTrigger>
@@ -1598,7 +1598,7 @@ function Dashboard() {
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">Pilih Evaluasi Bulan:</span>
               <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
-                <SelectTrigger className="w-[130px] h-7 text-xs font-medium bg-background border-border">
+                <SelectTrigger className="w-[140px] h-7 text-xs font-medium bg-background border-border px-2.5">
                   <Calendar className="mr-1.5 size-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
                   <SelectValue placeholder="Bulan" />
                 </SelectTrigger>
@@ -1691,7 +1691,7 @@ function Dashboard() {
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">Pilih Evaluasi Bulan:</span>
               <Select value={selectedMonth} onValueChange={(val) => setSelectedMonth(val)}>
-                <SelectTrigger className="w-[130px] h-7 text-xs font-medium bg-background border-border">
+                <SelectTrigger className="w-[140px] h-7 text-xs font-medium bg-background border-border px-2.5">
                   <Calendar className="mr-1.5 size-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
                   <SelectValue placeholder="Bulan" />
                 </SelectTrigger>
