@@ -174,6 +174,17 @@ export type Violation = {
   qcK3?: string;
   /** Status kolom "QC INSTALASI" dari Excel (OK/NOK), dipakai untuk pivot table */
   qcInstalasi?: string;
+  /** Metadata klarifikasi yang diajukan oleh mitra/petugas */
+  clarificationSubmittedAt?: string;
+  clarificationSubmittedBy?: string;
+  clarificationRole?: string;
+  clarificationOrganization?: string;
+  clarificationNote?: string;
+  clarificationBakFile?: string;
+  clarificationEvidenceFile?: string;
+  clarificationReviewedAt?: string;
+  clarificationReviewedBy?: string;
+  clarificationReviewNote?: string;
 };
 
 export function fixedSeverityForViolation(jenis: string): Severity | null {
