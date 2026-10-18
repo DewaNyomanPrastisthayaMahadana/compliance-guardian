@@ -419,30 +419,6 @@ function Dashboard() {
     tickets: Violation[];
   } | null>(null);
 
-  // Kalkulasi dinamis grafik jenis pelanggaran dominan dari data aktual (tanpa label generik "First")
-  const dynamicJenisDominan = useMemo(() => {
-    const counts: Record<string, number> = {};
-    allViolations.forEach((v) => {
-      if (v.status === "Closed" && v.poin === 0) return;
-      const j = (v.jenis || "Lainnya").trim();
-      const jLower = j.toLowerCase();
-      // Pastikan Inspeksi QC Rutin dan label First tidak muncul di grafik
-      if (
-        jLower !== "inspeksi qc rutin material & jasa" &&
-        jLower !== "inspeksi qc rutin" &&
-        jLower !== "pemeriksaan lapangan" &&
-        !jLower.includes("first") &&
-        !jLower.includes("kelengkapan apd standard")
-      ) {
-        counts[j] = (counts[j] || 0) + 1;
-      }
-    });
-    return Object.entries(counts)
-      .map(([label, jumlah]) => ({ label, jumlah, title: label, tickets: [] as Violation[] }))
-      .sort((a, b) => b.jumlah - a.jumlah)
-      .slice(0, 6);
-  }, [allViolations]);
-
   // Kalkulasi dinamis grafik tren bulanan dari data aktual (Jan - Okt)
   const dynamicTrenBulanan = useMemo(() => {
     const monthCounts: Record<string, number> = {};
@@ -465,6 +441,47 @@ function Dashboard() {
       jumlah: monthCounts[bulan] || 0,
     }));
   }, [allViolations]);
+
+  // Filter bulan untuk grafik Jenis Pelanggaran Dominan (ALL = Semua Bulan)
+  const [selectedMonthJenisDominan, setSelectedMonthJenisDominan] = useState<string>("ALL");
+
+  const availableMonthsForJenisDominan = useMemo(() => {
+    const monthsOrder = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    const baseMonths = new Set(dynamicTrenBulanan.map((tb) => tb.bulan));
+    allViolations.forEach((v) => {
+      const m = extractMonthKey(v.tanggalCek || v.createdAt);
+      if (m) baseMonths.add(m);
+    });
+    return monthsOrder.filter((m) => baseMonths.has(m));
+  }, [dynamicTrenBulanan, allViolations]);
+
+  // Kalkulasi dinamis grafik jenis pelanggaran dominan dari data aktual (tanpa label generik "First")
+  const dynamicJenisDominan = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allViolations.forEach((v) => {
+      if (v.status === "Closed" && v.poin === 0) return;
+      if (selectedMonthJenisDominan !== "ALL") {
+        const matchedMonth = extractMonthKey(v.tanggalCek || v.createdAt);
+        if (matchedMonth !== selectedMonthJenisDominan) return;
+      }
+      const j = (v.jenis || "Lainnya").trim();
+      const jLower = j.toLowerCase();
+      // Pastikan Inspeksi QC Rutin dan label First tidak muncul di grafik
+      if (
+        jLower !== "inspeksi qc rutin material & jasa" &&
+        jLower !== "inspeksi qc rutin" &&
+        jLower !== "pemeriksaan lapangan" &&
+        !jLower.includes("first") &&
+        !jLower.includes("kelengkapan apd standard")
+      ) {
+        counts[j] = (counts[j] || 0) + 1;
+      }
+    });
+    return Object.entries(counts)
+      .map(([label, jumlah]) => ({ label, jumlah, title: label, tickets: [] as Violation[] }))
+      .sort((a, b) => b.jumlah - a.jumlah)
+      .slice(0, 6);
+  }, [allViolations, selectedMonthJenisDominan]);
 
   // Kalkulasi dinamis grafik tren SBU (01SBU s.d. 10SIBT)
   const dynamicTrenSbu = useMemo(() => {
@@ -1151,9 +1168,37 @@ function Dashboard() {
         </Card>
 
         <Card className="dashboard-enter lg:col-span-2" style={{ animationDelay: "560ms" }}>
-          <CardHeader>
-            <CardTitle>Jenis Pelanggaran Dominan</CardTitle>
-            <CardDescription>Akumulasi temuan dari data aktif</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Jenis Pelanggaran Dominan</CardTitle>
+              <CardDescription>
+                {selectedMonthJenisDominan === "ALL"
+                  ? "Akumulasi temuan dari data aktif"
+                  : `Temuan data aktif bulan ${selectedMonthJenisDominan}`}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-muted-foreground hidden sm:inline">Pilih Bulan:</span>
+              <Select
+                value={selectedMonthJenisDominan}
+                onValueChange={(val) => setSelectedMonthJenisDominan(val)}
+              >
+                <SelectTrigger className="w-32 sm:w-36 h-8 text-xs font-semibold">
+                  <Calendar className="mr-1.5 size-3.5 text-primary shrink-0" />
+                  <SelectValue placeholder="Semua Bulan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL" className="text-xs font-semibold">
+                    Semua Bulan
+                  </SelectItem>
+                  {availableMonthsForJenisDominan.map((m) => (
+                    <SelectItem key={m} value={m} className="text-xs">
+                      Bulan {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent className="h-64 flex flex-col justify-center">
             {dynamicJenisDominan.length > 0 ? (
@@ -1166,9 +1211,14 @@ function Dashboard() {
                     if (!state || !state.activePayload || state.activePayload.length === 0) return;
                     const payload = state.activePayload[0]?.payload;
                     if (!payload || !payload.label) return;
-                    const matching = allViolations.filter(
-                      (v) => (v.jenis || "").trim().toLowerCase() === String(payload.label).trim().toLowerCase()
-                    );
+                    const matching = allViolations.filter((v) => {
+                      if (v.status === "Closed" && v.poin === 0) return false;
+                      if (selectedMonthJenisDominan !== "ALL") {
+                        const m = extractMonthKey(v.tanggalCek || v.createdAt);
+                        if (m !== selectedMonthJenisDominan) return false;
+                      }
+                      return (v.jenis || "").trim().toLowerCase() === String(payload.label).trim().toLowerCase();
+                    });
                     if (matching.length > 0) {
                       setSelectedK3Detail({
                         id: payload.label,
