@@ -14,6 +14,7 @@ import {
   FileText,
   X,
   Plus,
+  FileCheck2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ const nav = [
   { to: "/pelanggaran", label: "Pelanggaran", icon: FileWarning },
   { to: "/mitra", label: "Scorecard Mitra", icon: Building2 },
   { to: "/portal", label: "Portal Klarifikasi", icon: MessageSquareShare },
+  { to: "/laporan-klarifikasi", label: "Laporan Klarifikasi", icon: FileCheck2 },
   { to: "/buat-akun", label: "Buat Akun", icon: UserPlus },
   { to: "/data-akun", label: "Data Akun", icon: UsersRound },
   { to: "/faq", label: "FAQ", icon: CircleHelp },
@@ -52,6 +54,7 @@ export const ROUTE_TAB_DEFINITIONS: Record<
   "/pelanggaran": { label: "Data Pelanggaran", icon: FileWarning },
   "/mitra": { label: "Scorecard Mitra", icon: Building2 },
   "/portal": { label: "Portal Klarifikasi", icon: MessageSquareShare },
+  "/laporan-klarifikasi": { label: "Laporan Klarifikasi", icon: FileCheck2 },
   "/buat-akun": { label: "Buat Akun", icon: UserPlus },
   "/data-akun": { label: "Data Akun", icon: UsersRound },
   "/faq": { label: "FAQ & Bantuan", icon: CircleHelp },

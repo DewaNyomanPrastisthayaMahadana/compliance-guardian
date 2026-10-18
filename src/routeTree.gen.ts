@@ -14,6 +14,7 @@ import { Route as BuatAkunRouteImport } from './routes/buat-akun'
 import { Route as DataAkunRouteImport } from './routes/data-akun'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as LaporRouteImport } from './routes/lapor'
+import { Route as LaporanKlarifikasiRouteImport } from './routes/laporan-klarifikasi'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MitraRouteImport } from './routes/mitra'
 import { Route as PelanggaranRouteImport } from './routes/pelanggaran'
@@ -44,6 +45,11 @@ const FaqRoute = FaqRouteImport.update({
 const LaporRoute = LaporRouteImport.update({
   id: '/lapor',
   path: '/lapor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaporanKlarifikasiRoute = LaporanKlarifikasiRouteImport.update({
+  id: '/laporan-klarifikasi',
+  path: '/laporan-klarifikasi',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/data-akun': typeof DataAkunRoute
   '/faq': typeof FaqRoute
   '/lapor': typeof LaporRoute
+  '/laporan-klarifikasi': typeof LaporanKlarifikasiRoute
   '/login': typeof LoginRoute
   '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/data-akun': typeof DataAkunRoute
   '/faq': typeof FaqRoute
   '/lapor': typeof LaporRoute
+  '/laporan-klarifikasi': typeof LaporanKlarifikasiRoute
   '/login': typeof LoginRoute
   '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/data-akun': typeof DataAkunRoute
   '/faq': typeof FaqRoute
   '/lapor': typeof LaporRoute
+  '/laporan-klarifikasi': typeof LaporanKlarifikasiRoute
   '/login': typeof LoginRoute
   '/mitra': typeof MitraRoute
   '/pelanggaran': typeof PelanggaranRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/data-akun'
     | '/faq'
     | '/lapor'
+    | '/laporan-klarifikasi'
     | '/login'
     | '/mitra'
     | '/pelanggaran'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/data-akun'
     | '/faq'
     | '/lapor'
+    | '/laporan-klarifikasi'
     | '/login'
     | '/mitra'
     | '/pelanggaran'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/data-akun'
     | '/faq'
     | '/lapor'
+    | '/laporan-klarifikasi'
     | '/login'
     | '/mitra'
     | '/pelanggaran'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   DataAkunRoute: typeof DataAkunRoute
   FaqRoute: typeof FaqRoute
   LaporRoute: typeof LaporRoute
+  LaporanKlarifikasiRoute: typeof LaporanKlarifikasiRoute
   LoginRoute: typeof LoginRoute
   MitraRoute: typeof MitraRoute
   PelanggaranRoute: typeof PelanggaranRoute
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/lapor'
       fullPath: '/lapor'
       preLoaderRoute: typeof LaporRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/laporan-klarifikasi': {
+      id: '/laporan-klarifikasi'
+      path: '/laporan-klarifikasi'
+      fullPath: '/laporan-klarifikasi'
+      preLoaderRoute: typeof LaporanKlarifikasiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   DataAkunRoute: DataAkunRoute,
   FaqRoute: FaqRoute,
   LaporRoute: LaporRoute,
+  LaporanKlarifikasiRoute: LaporanKlarifikasiRoute,
   LoginRoute: LoginRoute,
   MitraRoute: MitraRoute,
   PelanggaranRoute: PelanggaranRoute,

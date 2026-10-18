@@ -44,14 +44,15 @@ const accessiblePaths: Record<AppRole, string[]> = {
     "/pelanggaran",
     "/mitra",
     "/portal",
+    "/laporan-klarifikasi",
     "/pengguna",
     "/buat-akun",
     "/data-akun",
     "/faq",
   ],
-  "petugas-sbu": ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
-  mitra: ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
-  "petugas-mitra": ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
+  "petugas-sbu": ["/", "/pelanggaran", "/mitra", "/portal", "/laporan-klarifikasi", "/faq"],
+  mitra: ["/", "/pelanggaran", "/mitra", "/portal", "/laporan-klarifikasi", "/faq"],
+  "petugas-mitra": ["/", "/pelanggaran", "/mitra", "/portal", "/laporan-klarifikasi", "/faq"],
 };
 
 export function canAccessPath(role: AppRole, path: string) {

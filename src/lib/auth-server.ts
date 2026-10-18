@@ -30,6 +30,7 @@ const routePaths = [
   "/pelanggaran",
   "/mitra",
   "/portal",
+  "/laporan-klarifikasi",
   "/pengguna",
   "/buat-akun",
   "/data-akun",
@@ -43,9 +44,9 @@ const SERVER_BOOT_ID = `boot-${Date.now()}-${Math.random().toString(36).slice(2,
 
 const routeAccess: Record<AppRole, readonly (typeof routePaths)[number][]> = {
   "super-admin": routePaths,
-  "petugas-sbu": ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
-  mitra: ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
-  "petugas-mitra": ["/", "/pelanggaran", "/mitra", "/portal", "/faq"],
+  "petugas-sbu": ["/", "/pelanggaran", "/mitra", "/portal", "/laporan-klarifikasi", "/faq"],
+  mitra: ["/", "/pelanggaran", "/mitra", "/portal", "/laporan-klarifikasi", "/faq"],
+  "petugas-mitra": ["/", "/pelanggaran", "/mitra", "/portal", "/laporan-klarifikasi", "/faq"],
 };
 
 const roleLanding: Record<AppRole, "/" | "/portal"> = {
