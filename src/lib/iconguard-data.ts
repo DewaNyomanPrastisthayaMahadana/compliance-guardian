@@ -773,6 +773,9 @@ export async function saveCustomDataToIndexedDB(
 export function isRealViolation(v?: { jenis?: string | null; poin?: number | null; status?: string | null } | null): boolean {
   if (!v || !v.jenis) return false;
   const j = v.jenis.trim().toLowerCase();
+  const clean = j.replace(/[^a-z0-9]/g, "");
+
+  // 1. Abaikan jenis generik inspeksi rutin / pemeriksaan lapangan
   if (
     j === "inspeksi qc rutin material & jasa" ||
     j === "inspeksi qc rutin" ||
@@ -781,6 +784,47 @@ export function isRealViolation(v?: { jenis?: string | null; poin?: number | nul
   ) {
     return false;
   }
+
+  // 2. Abaikan DW gudang, lokasi FAT-Pelanggan, dan Selisih DW (bukan temuan pelanggaran K3/teknis)
+  if (
+    j.includes("dw gudang") ||
+    clean.includes("dwgudang") ||
+    j.includes("lokasi fat-pelanggan") ||
+    j.includes("lokasi fat pelanggan") ||
+    clean.includes("lokasifatpelanggan") ||
+    j.includes("selisih dw") ||
+    clean.includes("selisihdw")
+  ) {
+    return false;
+  }
+
+  // 3. Abaikan kolom status / ringkasan QC (QC STATUS DW, QC Stiker ONT, QC PENAMPILAN, QC K3, QC INSTALASI)
+  if (
+    j.includes("qc status dw") ||
+    clean.includes("qcstatusdw") ||
+    j.includes("qc stiker ont") ||
+    clean.includes("qcstikeront") ||
+    j.includes("qc penampilan") ||
+    clean.includes("qcpenampilan") ||
+    j.includes("qc k3") ||
+    clean === "qck3" ||
+    j.includes("qc instalasi") ||
+    clean === "qcinstalasi"
+  ) {
+    return false;
+  }
+
+  // 4. Abaikan seluruh kolom Remark (Remark Stiker ONT, Remark Penampilan, Remark k3, Remark Instalasi & DW, dsb)
+  if (
+    j.startsWith("remark") ||
+    j.includes("remark stiker ont") ||
+    j.includes("remark penampilan") ||
+    j.includes("remark k3") ||
+    j.includes("remark instalasi")
+  ) {
+    return false;
+  }
+
   return true;
 }
 
@@ -810,8 +854,9 @@ export function sanitizeViolation(v: Violation): Violation {
  * dan menghapus tiket duplikat jika ketentuan spesifik sudah tercatat pada inspeksi yang sama.
  */
 export function cleanK3Violations(list: Violation[]): Violation[] {
+  const filtered = list.filter(isRealViolation);
   const byPa: Record<string, Violation[]> = {};
-  list.forEach((v) => {
+  filtered.forEach((v) => {
     const paKey = v.idPa || v.id;
     if (!byPa[paKey]) byPa[paKey] = [];
     byPa[paKey].push(v);
@@ -819,7 +864,7 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
 
   const cleaned: Violation[] = [];
 
-  list.forEach((v) => {
+  filtered.forEach((v) => {
     const jRaw = (v.jenis || "").trim();
     const jLower = jRaw.toLowerCase();
 
@@ -893,7 +938,7 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
     });
   });
 
-  return cleaned;
+  return cleaned.filter(isRealViolation);
 }
 
 export async function hydrateCustomDataFromIndexedDB(): Promise<{

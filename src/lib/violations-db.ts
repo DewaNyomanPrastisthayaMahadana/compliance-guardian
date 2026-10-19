@@ -165,9 +165,10 @@ export async function fetchViolationsFromDb(request?: Request): Promise<Violatio
       });
 
       // Sinkronkan memori server
+      const filtered = dbViolations.filter(isRealViolation);
       inMemoryViolations.length = 0;
-      inMemoryViolations.push(...dbViolations);
-      return dbViolations;
+      inMemoryViolations.push(...filtered);
+      return filtered;
     }
   } catch (error) {
     console.error("Gagal mengambil violations dari MySQL, fallback ke memory:", error);

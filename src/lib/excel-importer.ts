@@ -95,8 +95,6 @@ export const CHECKLIST_COLUMNS: ChecklistColDef[] = [
   { key: "k3_akhir_sepatu", label: "k3 akhir sepatu", defaultSeverity: "Berat", aliases: ["k3 akhir sepatu", "sepatu akhir"] },
 
   { key: "baa", label: "BAA", defaultSeverity: "Sedang", aliases: ["baa", "berita acara aktivasi", "berita acara"] },
-  { key: "dw_gudang", label: "DW Gudang", defaultSeverity: "Sedang", aliases: ["dw gudang", "dwgudang", "delivery order", "do gudang"] },
-  { key: "lokasi_fat_pelanggan", label: "Lokasi FAT-Pelanggan", defaultSeverity: "Sedang", aliases: ["lokasi fat-pelanggan", "lokasi fat pelanggan", "lokasi fat", "jarak fat", "fat-pelanggan"] },
 ];
 
 /**
@@ -535,7 +533,26 @@ export function processAndImportData(
       a.toLowerCase().replace(/[^a-z0-9]/g, "")
     );
     const headerName = allHeaders.find((h) => {
-      const hClean = h.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const hLower = h.toLowerCase().trim();
+      const hClean = hLower.replace(/[^a-z0-9]/g, "");
+
+      // Kolom status QC summary, remark, dan pengukuran jarak drop wire TIDAK BOLEH menjadi checklist temuan
+      if (
+        hLower.startsWith("remark") ||
+        hLower.startsWith("qc ") ||
+        hLower.startsWith("qc_") ||
+        hClean.startsWith("qcstatus") ||
+        hClean.startsWith("qck3") ||
+        hClean.startsWith("qcinstalasi") ||
+        hClean.startsWith("qcpenampilan") ||
+        hClean.startsWith("qcstiker") ||
+        hClean.includes("dwgudang") ||
+        hClean.includes("lokasifat") ||
+        hClean.includes("selisihdw")
+      ) {
+        return false;
+      }
+
       return cleanAliases.some((alias) => hClean === alias || hClean.includes(alias) || alias.includes(hClean));
     });
     return { ...item, headerName };
@@ -749,50 +766,50 @@ export function processAndImportData(
     const rowQcK3 = String(row["QC K3"] ?? row["qc k3"] ?? "").trim().toUpperCase();
     const rowQcInst = String(row["QC INSTALASI"] ?? row["qc instalasi"] ?? "").trim().toUpperCase();
 
-    // Jika tidak ada checklist spesifik yang terdeteksi NOK, periksa kolom ringkasan QC K3 / QC INSTALASI dan Remark
+    // Jika tidak ada checklist spesifik yang terdeteksi NOK, periksa apakah ada catatan K3 / Instalasi spesifik
     if (violationsInRow.length === 0) {
-      const qcK3Val = String(row["QC K3"] || row["qc k3"] || "").trim().toLowerCase();
-      const qcInstVal = String(row["QC INSTALASI"] || row["qc instalasi"] || "").trim().toLowerCase();
       const remarkK3 = String(row["Remark k3"] || row["remark k3"] || row["Remark Penampilan"] || row["KET"] || row["Remark"] || "").trim();
-      const remarkInst = String(row["Remark Instalasi & DW"] || row["Remark Instalasi"] || row["remark instalasi"] || row["Remark"] || "").trim();
+      const remarkInst = String(row["Remark Instalasi & DW"] || row["Remark Instalasi"] || row["remark instalasi"] || "").trim();
 
-      if (qcK3Val === "nok" || qcK3Val.includes("nok") || (remarkK3 && !remarkK3.toLowerCase().includes("tidak menggunakan s-clam"))) {
-        let label = "K3 Awal - Rompi";
+      if (remarkK3) {
         const remLower = remarkK3.toLowerCase();
-        if (remLower.includes("helm")) label = "K3 Awal - Helm";
-        else if (remLower.includes("sarung")) label = "K3 Awal - Sarung Tangan";
+        let label: string | null = null;
+        if (remLower.includes("helm")) label = "k3 awal helm";
+        else if (remLower.includes("sarung") || remLower.includes("tangan")) label = "k3 awal sarung tangan";
         else if (remLower.includes("lengan") || remLower.includes("baju") || remLower.includes("seragam")) label = "Penampilan Awal - Lengan Panjang";
-        else if (remLower.includes("sepatu")) label = "K3 Awal - Sepatu";
-        else if (remLower.includes("harnes") || remLower.includes("harness")) label = "K3 Awal - Body Harness";
-        else if (remLower.includes("rompi")) label = "K3 Awal - Rompi";
-        else if (remarkK3) label = remarkK3;
+        else if (remLower.includes("sepatu")) label = "k3 awal sepatu";
+        else if (remLower.includes("harnes") || remLower.includes("harness")) label = "k3 awal body harnes";
+        else if (remLower.includes("rompi")) label = "k3 awal rompi";
 
-        violationsInRow.push({
-          key: "k3_summary",
-          label,
-          defaultSeverity: "Berat",
-          aliases: [],
-          headerName: "QC K3",
-        });
+        if (label) {
+          violationsInRow.push({
+            key: "k3_summary",
+            label,
+            defaultSeverity: "Berat",
+            aliases: [],
+            headerName: "Remark k3",
+          });
+        }
       }
 
-      if (qcInstVal === "nok" || qcInstVal.includes("nok") || remarkInst) {
-        let label = "Instalasi S-Clamp dan Hookclam di Rumah";
+      if (remarkInst) {
         const remLower = remarkInst.toLowerCase();
+        let label: string | null = null;
         if (remLower.includes("redaman") || remLower.includes("opm")) label = "OPM FAT -25 dB";
-        else if (remLower.includes("fat")) label = "ID FAT";
-        else if (remLower.includes("stiker") || remLower.includes("ont")) label = "Stiker ONT";
+        else if (remLower.includes("fat") && !remLower.includes("selisih") && !remLower.includes("lokasi")) label = "ID FAT";
+        else if (remLower.includes("stiker barcode") || (remLower.includes("stiker") && !remLower.includes("qc") && !remLower.includes("remark"))) label = "Stiker ONT";
         else if (remLower.includes("baa")) label = "BAA";
         else if (remLower.includes("s-clam") || remLower.includes("sclam") || remLower.includes("hookclam")) label = "Instalasi S-Clamp dan Hookclam di Rumah";
-        else if (remarkInst) label = remarkInst;
 
-        violationsInRow.push({
-          key: "inst_summary",
-          label,
-          defaultSeverity: "Sedang",
-          aliases: [],
-          headerName: "QC INSTALASI",
-        });
+        if (label) {
+          violationsInRow.push({
+            key: "inst_summary",
+            label,
+            defaultSeverity: "Sedang",
+            aliases: [],
+            headerName: "Remark Instalasi & DW",
+          });
+        }
       }
     }
 

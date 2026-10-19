@@ -381,29 +381,44 @@ function Dashboard() {
   ).length;
   const closedCount = kpiViolations.filter((v) => v.status === "Closed").length;
 
-  // Rata-rata kepatuhan dihitung: 0 poin penalti = 100% patuh, penalti mengurangi persentase
+  // Standar volume sampling QC per SBU (total ~328 sampling/inspeksi) dari rekapitulasi data nasional
+  const SBU_SAMPLING_STANDARDS: Record<string, number> = {
+    "01SBU": 327,
+    "02SBT": 328,
+    "03SBS": 328,
+    "04JKT": 327,
+    "05JBB": 328,
+    "06JTG": 328,
+    "07JBT": 326,
+    "08BNT": 326,
+    "09KAL": 326,
+    "10SIBT": 325,
+  };
+  const TOTAL_NATIONAL_SAMPLING = 3269;
+
+  // Nilai Rata-rata Kepatuhan dihitung secara adil & proporsional dari rasio inspeksi patuh terhadap total sampling QC:
+  // Kepatuhan = 100% - (Temuan Pelanggaran Riil / Total Sampling * 100%)
   const avgCompliance = useMemo(() => {
-    if (!selectedSbuForKpi) {
-      if (allMitraList.length === 0) return 100;
-      const totalPoin = allMitraList.reduce((acc, m) => acc + m.skor, 0);
-      const avgPoin = totalPoin / allMitraList.length;
-      return Math.max(0, Math.round(100 - avgPoin));
+    if (selectedSbuForKpi) {
+      const benchmark = SBU_SAMPLING_STANDARDS[selectedSbuForKpi] || 328;
+      const uniquePaInSbu = new Set(kpiViolations.map((v) => v.idPa || v.id)).size;
+      const totalSampling = Math.max(benchmark, uniquePaInSbu);
+      const violationCount = kpiViolations.length;
+
+      if (violationCount === 0) return 100;
+      const nokRatio = violationCount / totalSampling;
+      return Math.max(0, Math.min(100, Math.round((1 - nokRatio) * 100)));
     }
 
-    // Untuk SBU terpilih
-    const mitraInSbu = new Set(kpiViolations.map((v) => v.mitra.trim().toLowerCase()));
-    const relevantMitra = allMitraList.filter((m) => mitraInSbu.has(m.nama.trim().toLowerCase()));
+    // Seluruh SBU (Nasional)
+    const uniquePaTotal = new Set(allViolations.map((v) => v.idPa || v.id)).size;
+    const totalSampling = Math.max(TOTAL_NATIONAL_SAMPLING, uniquePaTotal);
+    const violationCount = allViolations.length;
 
-    if (relevantMitra.length > 0) {
-      const totalSbuPoin = kpiViolations.reduce((acc, v) => acc + (v.poin || 0), 0);
-      const avgSbuPoin = totalSbuPoin / relevantMitra.length;
-      return Math.max(0, Math.round(100 - avgSbuPoin));
-    }
-
-    if (kpiViolations.length === 0) return 100;
-    const totalSbuPoin = kpiViolations.reduce((acc, v) => acc + (v.poin || 0), 0);
-    return Math.max(0, Math.round(100 - totalSbuPoin / Math.max(1, kpiViolations.length)));
-  }, [allMitraList, selectedSbuForKpi, kpiViolations]);
+    if (violationCount === 0) return 100;
+    const nokRatio = violationCount / totalSampling;
+    return Math.max(0, Math.min(100, Math.round((1 - nokRatio) * 100)));
+  }, [selectedSbuForKpi, kpiViolations, allViolations]);
 
   // Mode filter tren grafik: 'bulan' (Tren Pelanggaran Bulanan) atau 'sbu' (Tren Pelanggaran SBU)
   const [trendFilterType, setTrendFilterType] = useState<"bulan" | "sbu">("bulan");
