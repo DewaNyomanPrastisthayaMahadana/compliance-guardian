@@ -255,26 +255,113 @@ export function getSbuInfo(
     return { code: "—", label: "—", full: "—" };
   }
 
+  // 1. Direct code or label match
   for (const sbu of sbuOptions) {
-    if (raw.includes(sbu.code) || raw.includes(sbu.label)) {
+    if (
+      raw.includes(sbu.code) ||
+      raw.includes(sbu.label) ||
+      (raw.length >= 4 && sbu.label.includes(raw))
+    ) {
       return { code: sbu.code, label: sbu.label, full: `${sbu.code} — ${sbu.label}` };
     }
   }
 
+  // 2. Config & short match (e.g. BNT, KAL, JBB, JTG, etc.)
   for (const [key, conf] of Object.entries(sbuRegionalConfig)) {
-    if (raw.includes(key) || raw.startsWith(key) || (conf.label && raw.includes(conf.label.toUpperCase()))) {
+    if (
+      raw.includes(key) ||
+      raw.startsWith(key) ||
+      (conf.label && raw.includes(conf.label.toUpperCase())) ||
+      (conf.short && raw.includes(conf.short.toUpperCase()))
+    ) {
       const label = conf.label || conf.short || key;
       return { code: key, label, full: `${key} — ${label}` };
     }
   }
 
-  const match = raw.match(/^(\d{2}[A-Z]+)/);
+  // 3. Regex match for standard SBU code pattern like 08BNT, 01SBU, etc.
+  const match = raw.match(/(\d{2}[A-Z]+)/);
   if (match && match[1]) {
     const opt = sbuOptions.find((s) => s.code === match[1]);
     if (opt) {
       return { code: opt.code, label: opt.label, full: `${opt.code} — ${opt.label}` };
     }
     return { code: match[1], label: match[1], full: match[1] };
+  }
+
+  // 4. Regional keyword matching if raw string mentions a province or city
+  const regionalKeywords: Record<string, string> = {
+    BALI: "08BNT",
+    "NUSA TENGGARA": "08BNT",
+    DENPASAR: "08BNT",
+    LOMBOK: "08BNT",
+    MATARAM: "08BNT",
+    KUPANG: "08BNT",
+    NTB: "08BNT",
+    NTT: "08BNT",
+    KALIMANTAN: "09KAL",
+    BALIKPAPAN: "09KAL",
+    BANJARMASIN: "09KAL",
+    SAMARINDA: "09KAL",
+    PONTIANAK: "09KAL",
+    JAKARTA: "04JKT",
+    BANTEN: "04JKT",
+    TANGERANG: "04JKT",
+    SERANG: "04JKT",
+    BANDUNG: "05JBB",
+    BEKASI: "05JBB",
+    BOGOR: "05JBB",
+    CIREBON: "05JBB",
+    SEMARANG: "06JTG",
+    SOLO: "06JTG",
+    SURAKARTA: "06JTG",
+    YOGYAKARTA: "06JTG",
+    JOGJA: "06JTG",
+    SURABAYA: "07JBT",
+    MALANG: "07JBT",
+    SIDOARJO: "07JBT",
+    MEDAN: "01SBU",
+    ACEH: "01SBU",
+    SUMUT: "01SBU",
+    RIAU: "02SBT",
+    PEKANBARU: "02SBT",
+    PADANG: "02SBT",
+    SUMBAR: "02SBT",
+    BATAM: "02SBT",
+    JAMBI: "02SBT",
+    PALEMBANG: "03SBS",
+    LAMPUNG: "03SBS",
+    BENGKULU: "03SBS",
+    BANGKA: "03SBS",
+    MAKASSAR: "10SIBT",
+    MANADO: "10SIBT",
+    SULAWESI: "10SIBT",
+    MALUKU: "10SIBT",
+    PAPUA: "10SIBT",
+  };
+
+  for (const [kw, code] of Object.entries(regionalKeywords)) {
+    if (raw.includes(kw)) {
+      const opt = sbuOptions.find((s) => s.code === code);
+      const label = opt?.label || code;
+      return { code, label, full: `${code} — ${label}` };
+    }
+  }
+
+  // 5. Fallback via mitra mapping
+  if (typeof input !== "string" && input?.mitra) {
+    const mName = input.mitra.trim().toLowerCase();
+    for (const [code, partners] of Object.entries(sbuMitraMapping)) {
+      if (partners.some((p) => p.nama.trim().toLowerCase() === mName)) {
+        const opt = sbuOptions.find((s) => s.code === code);
+        const label = opt?.label || code;
+        return {
+          code,
+          label,
+          full: `${code} — ${label}`,
+        };
+      }
+    }
   }
 
   return { code: raw, label: raw, full: raw };

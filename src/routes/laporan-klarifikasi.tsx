@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { getCurrentAuthUser, requireRouteAccess } from "@/lib/auth-server";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { getCurrentAuthUser, getPelanggaranData, requireRouteAccess } from "@/lib/auth-server";
 import { useEffect, useMemo, useState } from "react";
 import {
   FileCheck2,
@@ -67,6 +67,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/laporan-klarifikasi")({
   beforeLoad: () => requireRouteAccess("/laporan-klarifikasi"),
+  loader: () => getPelanggaranData(),
   head: () => ({
     meta: [
       { title: "Laporan Klarifikasi — IconGuard" },
@@ -157,7 +158,9 @@ function getRoleBadge(role: string) {
 }
 
 function LaporanKlarifikasiPage() {
-  const [, setRefreshTrigger] = useState(0);
+  const router = useRouter();
+  const { violations: loadedViolations } = Route.useLoaderData();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
   // Filter states
@@ -184,22 +187,33 @@ function LaporanKlarifikasiPage() {
     return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
   }, []);
 
-  const custom = getCustomViolationsFromStorage();
   const deleted = new Set(getDeletedViolationIds());
   const allList = useMemo(() => {
-    const map = new Map<string, Violation>();
-    violations.forEach((v) => {
-      if (!deleted.has(v.id) && isRealViolation(v)) {
-        map.set(v.id, v);
-      }
-    });
-    custom.forEach((v) => {
-      if (!deleted.has(v.id) && isRealViolation(v)) {
-        map.set(v.id, v);
-      }
-    });
-    return Array.from(map.values());
-  }, [custom, deleted]);
+    const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
+    const custom = getCustomViolationsFromStorage();
+    if (isOverridden && custom.length > 0) {
+      return custom.filter((v) => !deleted.has(v.id) && isRealViolation(v));
+    }
+    const base = loadedViolations
+      ? [
+          ...loadedViolations.map((violation) => {
+            const localViolation = violations.find((item) => item.id === violation.id);
+            return localViolation?.bukti?.length
+              ? { ...violation, bukti: localViolation.bukti }
+              : violation;
+          }),
+          ...violations.filter((item) => !loadedViolations.some((v) => v.id === item.id)),
+        ]
+      : violations;
+
+    const combined = [
+      ...custom,
+      ...base.filter((v) => !custom.some((c) => c.id === v.id)),
+    ];
+    return (isOverridden && custom.length > 0 ? custom : combined).filter(
+      (v) => !deleted.has(v.id) && isRealViolation(v),
+    );
+  }, [loadedViolations, refreshTrigger]);
 
   // Hak Akses Scope:
   // - Super Admin: Bebas memfilter seluruh SBU nasional.
@@ -381,6 +395,7 @@ function LaporanKlarifikasiPage() {
 
       syncViolationRecord(updated);
       setRefreshTrigger((prev) => prev + 1);
+      router.invalidate();
       setSelectedDetail(null);
       setReviewNote("");
       toast.success(`Tiket ${selectedDetail.id} berhasil disetujui dan ditutup (Closed)!`, {
@@ -420,6 +435,7 @@ function LaporanKlarifikasiPage() {
 
       syncViolationRecord(updated);
       setRefreshTrigger((prev) => prev + 1);
+      router.invalidate();
       setSelectedDetail(null);
       setReviewNote("");
       toast.warning(`Tiket ${selectedDetail.id} dikembalikan untuk perbaikan (Pending Klarifikasi).`, {

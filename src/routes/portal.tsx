@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { getCurrentAuthUser, requireRouteAccess } from "@/lib/auth-server";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { getCurrentAuthUser, getPelanggaranData, requireRouteAccess } from "@/lib/auth-server";
 import { toast } from "sonner";
 import {
   FileUp,
@@ -68,6 +68,7 @@ import { useEffect, useMemo, useState } from "react";
 
 export const Route = createFileRoute("/portal")({
   beforeLoad: () => requireRouteAccess("/portal"),
+  loader: () => getPelanggaranData(),
   head: () => ({
     meta: [
       { title: "Portal Klarifikasi Mitra — IconGuard" },
@@ -90,7 +91,9 @@ export const Route = createFileRoute("/portal")({
 type AuthUser = Awaited<ReturnType<typeof getCurrentAuthUser>>;
 
 function PortalPage() {
-  const [, setRefreshTrigger] = useState(0);
+  const router = useRouter();
+  const { violations: loadedViolations } = Route.useLoaderData();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [selectedTicketId, setSelectedTicketId] = useState<string>("");
   const [selectedSbuFilter, setSelectedSbuFilter] = useState<string>("ALL");
@@ -117,22 +120,33 @@ function PortalPage() {
     return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
   }, []);
 
-  const custom = getCustomViolationsFromStorage();
   const deleted = new Set(getDeletedViolationIds());
   const allList = useMemo(() => {
-    const map = new Map<string, Violation>();
-    violations.forEach((v) => {
-      if (!deleted.has(v.id) && isRealViolation(v)) {
-        map.set(v.id, v);
-      }
-    });
-    custom.forEach((v) => {
-      if (!deleted.has(v.id) && isRealViolation(v)) {
-        map.set(v.id, v);
-      }
-    });
-    return Array.from(map.values());
-  }, [custom, deleted]);
+    const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
+    const custom = getCustomViolationsFromStorage();
+    if (isOverridden && custom.length > 0) {
+      return custom.filter((v) => !deleted.has(v.id) && isRealViolation(v));
+    }
+    const base = loadedViolations
+      ? [
+          ...loadedViolations.map((violation) => {
+            const localViolation = violations.find((item) => item.id === violation.id);
+            return localViolation?.bukti?.length
+              ? { ...violation, bukti: localViolation.bukti }
+              : violation;
+          }),
+          ...violations.filter((item) => !loadedViolations.some((v) => v.id === item.id)),
+        ]
+      : violations;
+
+    const combined = [
+      ...custom,
+      ...base.filter((v) => !custom.some((c) => c.id === v.id)),
+    ];
+    return (isOverridden && custom.length > 0 ? custom : combined).filter(
+      (v) => !deleted.has(v.id) && isRealViolation(v),
+    );
+  }, [loadedViolations, refreshTrigger]);
 
   // Logika Filter Hak Akses SBU & Mitra:
   // - Petugas SBU: Hanya bisa mengakses & mengklarifikasi tiket di wilayah SBU asalnya (misal SBU Kalimantan).
@@ -288,6 +302,7 @@ function PortalPage() {
 
       syncViolationRecord(updated);
       setRefreshTrigger((prev) => prev + 1);
+      router.invalidate();
 
       toast.success(`Klarifikasi untuk tiket ${activeTicket.id} berhasil dikirim!`, {
         description: "Status tiket diperbarui menjadi Verifikasi. Data telah masuk ke daftar pending di sebelah kanan untuk cross check.",
@@ -328,6 +343,7 @@ function PortalPage() {
 
       syncViolationRecord(updated);
       setRefreshTrigger((prev) => prev + 1);
+      router.invalidate();
       setCrossCheckTicket(null);
       setReviewNote("");
       toast.success(`Tiket ${crossCheckTicket.id} berhasil disetujui & ditutup (Closed)!`, {
@@ -367,6 +383,7 @@ function PortalPage() {
 
       syncViolationRecord(updated);
       setRefreshTrigger((prev) => prev + 1);
+      router.invalidate();
       setCrossCheckTicket(null);
       setReviewNote("");
       toast.warning(`Tiket ${crossCheckTicket.id} dikembalikan untuk perbaikan (Pending Klarifikasi).`, {
