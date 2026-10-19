@@ -73,6 +73,32 @@ function extractMonthKey(dateRaw?: string): string {
   return "";
 }
 
+function extractYearKey(dateRaw?: string, fallbackId?: string): string {
+  if (dateRaw) {
+    const s = String(dateRaw).trim();
+    if (s === "Hari ini" || s.toLowerCase() === "today") {
+      return String(new Date().getFullYear());
+    }
+    const match = s.match(/\b(20\d{2})\b/);
+    if (match) return match[1];
+
+    try {
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        if (y >= 2000 && y <= 2100) return String(y);
+      }
+    } catch {}
+  }
+
+  if (fallbackId) {
+    const matchId = String(fallbackId).match(/\b(20\d{2})\b/);
+    if (matchId) return matchId[1];
+  }
+
+  return String(new Date().getFullYear());
+}
+
 function getSbuInfo(input?: string | Violation): { code: string; label: string; full: string } {
   let raw = "";
   if (!input) return { code: "—", label: "—", full: "—" };
@@ -303,7 +329,7 @@ function Dashboard() {
     return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
   }, []);
 
-  const allViolations = useMemo(() => {
+  const allViolationsRaw = useMemo(() => {
     const deletedIds = new Set(getDeletedViolationIds());
     const custom = getCustomViolationsFromStorage();
     const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
@@ -317,6 +343,32 @@ function Dashboard() {
     );
     return cleanK3Violations(rawList);
   }, [loadedViolations, refreshTrigger]);
+
+  // Filter Tahun untuk Halaman Utama Dashboard (ALL = Semua Tahun)
+  const [selectedYear, setSelectedYear] = useState<string>("ALL");
+
+  const availableYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const yearSet = new Set<string>();
+    yearSet.add(String(currentYear));
+    yearSet.add(String(currentYear - 1));
+
+    allViolationsRaw.forEach((v) => {
+      const y = extractYearKey(v.tanggalCek || v.createdAt || v.tanggalAktivasi, v.id);
+      if (y) yearSet.add(y);
+    });
+
+    return Array.from(yearSet).sort((a, b) => Number(b) - Number(a));
+  }, [allViolationsRaw]);
+
+  // Data pelanggaran yang telah difilter berdasarkan tahun terpilih
+  const allViolations = useMemo(() => {
+    if (selectedYear === "ALL") return allViolationsRaw;
+    return allViolationsRaw.filter((v) => {
+      const y = extractYearKey(v.tanggalCek || v.createdAt || v.tanggalAktivasi, v.id);
+      return y === selectedYear;
+    });
+  }, [allViolationsRaw, selectedYear]);
 
   const allMitraList = useMemo(() => {
     const customMitra = getCustomMitraListFromStorage();
@@ -923,11 +975,32 @@ function Dashboard() {
           title="Executive Dashboard"
           description="Ringkasan kepatuhan mitra Divisi Material dan Jasa, diperbarui real-time."
           action={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Filter Tahun */}
+              <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 shadow-xs">
+                <Calendar className="size-3.5 text-primary shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground hidden sm:inline">Tahun:</span>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger className="h-7 w-28 sm:w-32 border-0 bg-transparent px-1 text-xs font-bold text-foreground focus:ring-0 shadow-none cursor-pointer">
+                    <SelectValue placeholder="Pilih Tahun" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="ALL" className="text-xs font-semibold cursor-pointer">
+                      Semua Tahun
+                    </SelectItem>
+                    {availableYears.map((yr) => (
+                      <SelectItem key={yr} value={yr} className="text-xs font-semibold cursor-pointer">
+                        Tahun {yr}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Button
                 variant="outline"
                 onClick={() => setImportModalOpen(true)}
-                className="gap-1.5"
+                className="h-9 gap-1.5 text-xs font-semibold"
               >
                 <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
                 Upload Data Excel
@@ -946,28 +1019,54 @@ function Dashboard() {
         }}
       />
 
-      {/* Indikator Filter SBU untuk Kotak KPI di atas */}
-      {selectedSbuForKpi && (
-        <div className="mb-3 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/10 px-4 py-2 text-xs text-primary dashboard-enter">
-          <div className="flex items-center gap-2">
+      {/* Indikator Filter Aktif di atas Dashboard */}
+      {(selectedSbuForKpi || selectedYear !== "ALL") && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/10 px-4 py-2 text-xs text-primary dashboard-enter">
+          <div className="flex flex-wrap items-center gap-2">
             <Building2 className="size-4 shrink-0" />
             <span>
-              Menampilkan data ringkasan KPI untuk:{" "}
-              <strong>SBU {selectedSbuForKpi}</strong>
-              {sbuOptions.find((s) => s.code === selectedSbuForKpi)?.label
-                ? ` — ${sbuOptions.find((s) => s.code === selectedSbuForKpi)?.label}`
-                : ""}
+              Menampilkan data ringkasan untuk:{" "}
+              {selectedYear !== "ALL" && (
+                <strong className="mr-2 rounded bg-primary/20 px-1.5 py-0.5 font-bold">
+                  Tahun {selectedYear}
+                </strong>
+              )}
+              {selectedSbuForKpi ? (
+                <span>
+                  <strong>SBU {selectedSbuForKpi}</strong>
+                  {sbuOptions.find((s) => s.code === selectedSbuForKpi)?.label
+                    ? ` — ${sbuOptions.find((s) => s.code === selectedSbuForKpi)?.label}`
+                    : ""}
+                </span>
+              ) : (
+                <span>{selectedYear !== "ALL" ? "• Seluruh SBU Nasional" : "Seluruh SBU Nasional"}</span>
+              )}
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedSbuForKpi(null)}
-            className="h-7 px-2.5 text-xs text-primary hover:bg-primary/20 gap-1 font-semibold"
-          >
-            <X className="size-3.5" />
-            Reset (Semua SBU)
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedYear !== "ALL" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedYear("ALL")}
+                className="h-6 px-2 text-[11px] text-primary hover:bg-primary/20 gap-1 font-semibold cursor-pointer"
+              >
+                <X className="size-3" />
+                Reset Tahun
+              </Button>
+            )}
+            {selectedSbuForKpi && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedSbuForKpi(null)}
+                className="h-6 px-2 text-[11px] text-primary hover:bg-primary/20 gap-1 font-semibold cursor-pointer"
+              >
+                <X className="size-3" />
+                Reset SBU
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -978,9 +1077,9 @@ function Dashboard() {
             className="dashboard-enter relative overflow-hidden transition-all duration-200"
             style={{ animationDelay: `${index * 90 + 80}ms` }}
           >
-            {selectedSbuForKpi && (
+            {(selectedSbuForKpi || selectedYear !== "ALL") && (
               <span className="absolute top-2.5 right-2.5 text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
-                {selectedSbuForKpi}
+                {[selectedYear !== "ALL" ? `Tahun ${selectedYear}` : null, selectedSbuForKpi].filter(Boolean).join(" · ")}
               </span>
             )}
             <CardContent className="flex min-h-24 items-center gap-3.5 !p-4">
@@ -1006,7 +1105,9 @@ function Dashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle>
-                  {trendFilterType === "bulan" ? "Tren Pelanggaran Bulanan" : "Tren Pelanggaran SBU"}
+                  {trendFilterType === "bulan"
+                    ? `Tren Pelanggaran Bulanan ${selectedYear !== "ALL" ? `(${selectedYear})` : ""}`
+                    : "Tren Pelanggaran SBU"}
                 </CardTitle>
                 {trendFilterType === "sbu" && selectedSbuForKpi && (
                   <span className="inline-flex items-center rounded-md bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
