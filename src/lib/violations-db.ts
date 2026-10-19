@@ -168,6 +168,14 @@ export async function fetchViolationsFromDb(request?: Request): Promise<Violatio
       const filtered = dbViolations.filter(isRealViolation);
       inMemoryViolations.length = 0;
       inMemoryViolations.push(...filtered);
+
+      // Secara otomatis bersihkan temuan non-pelanggaran / DW kabel yang tersimpan di database
+      const invalidRows = dbViolations.filter((v) => !isRealViolation(v));
+      if (invalidRows.length > 0) {
+        const invalidIds = invalidRows.map((v) => v.id);
+        void pool.query("DELETE FROM violations WHERE id IN (?)", [invalidIds]).catch(() => {});
+      }
+
       return filtered;
     }
   } catch (error) {

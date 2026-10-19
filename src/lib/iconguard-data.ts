@@ -791,26 +791,48 @@ export function isRealViolation(v?: { jenis?: string | null; poin?: number | nul
     j.includes("need konfirm") ||
     j.includes("needconfirm") ||
     clean.includes("needkonfirm") ||
-    (v.status && v.status.toLowerCase().includes("needkonfirm"))
+    clean.includes("needconfirm") ||
+    (v.status && (
+      v.status.toLowerCase().includes("needkonfirm") ||
+      v.status.toLowerCase().includes("need konfirm") ||
+      v.status.toLowerCase().includes("needconfirm")
+    ))
   ) {
     return false;
   }
 
-  // 3. Abaikan DW gudang, lokasi FAT-Pelanggan, dan Selisih DW (bukan temuan pelanggaran K3/teknis)
+  // 3. Abaikan DW (Drop Wire) dan Kabel DW dalam segala bentuk:
+  // DW adalah penggunaan material (panjang kabel/selisih DW/DW gudang/kabel DW terlalu panjang, dsb),
+  // BUKAN pelanggaran K3 atau teknis instalasi, dan TIDAK BOLEH dimasukkan sebagai pelanggaran atau dikenakan poin penalti (PTS).
   if (
-    j.includes("dw gudang") ||
+    clean.includes("dw") ||
+    /\bdw\b/i.test(j) ||
+    j.includes("drop wire") ||
+    clean.includes("dropwire") ||
+    j.includes("kabel dw") ||
+    clean.includes("kabeldw") ||
+    clean.includes("selisihdw") ||
     clean.includes("dwgudang") ||
+    clean.includes("statusdw") ||
+    clean.includes("dwterlalu") ||
+    clean.includes("panjangdw") ||
+    j.includes("material") ||
+    clean.includes("material")
+  ) {
+    return false;
+  }
+
+  // 4. Abaikan lokasi FAT-Pelanggan (bukan temuan pelanggaran K3/teknis)
+  if (
     j.includes("lokasi fat-pelanggan") ||
     j.includes("lokasi fat pelanggan") ||
     clean.includes("lokasifatpelanggan") ||
-    j.includes("selisih dw") ||
-    clean.includes("selisihdw") ||
     clean.includes("fatlokasi")
   ) {
     return false;
   }
 
-  // 4. Abaikan kolom status / ringkasan QC (QC STATUS DW, QC Stiker ONT, QC PENAMPILAN, QC K3, QC INSTALASI)
+  // 5. Abaikan kolom status / ringkasan QC (QC STATUS DW, QC Stiker ONT, QC PENAMPILAN, QC K3, QC INSTALASI)
   if (
     j.startsWith("qc") ||
     clean.startsWith("qc") ||
@@ -828,7 +850,7 @@ export function isRealViolation(v?: { jenis?: string | null; poin?: number | nul
     return false;
   }
 
-  // 5. Abaikan seluruh kolom Remark (Remark Stiker ONT, Remark Penampilan, Remark k3, Remark Instalasi & DW, dsb)
+  // 6. Abaikan seluruh kolom Remark (Remark Stiker ONT, Remark Penampilan, Remark k3, Remark Instalasi & DW, dsb)
   if (
     j.startsWith("remark") ||
     clean.startsWith("remark") ||
@@ -850,6 +872,9 @@ export function isSbuCodeOrLabel(val?: string): boolean {
 }
 
 export function sanitizeViolation(v: Violation): Violation {
+  if (!isRealViolation(v)) {
+    v.poin = 0;
+  }
   if (v.petugasQc && (v.petugasQc === v.sbu || isSbuCodeOrLabel(v.petugasQc))) {
     v.petugasQc = undefined;
   }
@@ -989,21 +1014,38 @@ export async function hydrateCustomDataFromIndexedDB(): Promise<{
       const rawActive = result.violations
         .filter((v) => !deletedIds.has(v.id) && isRealViolation(v))
         .map(sanitizeViolation);
-      const activeViolations = cleanK3Violations(rawActive);
+      const activeViolations = cleanK3Violations(rawActive).filter(isRealViolation);
       violations.length = 0;
       violations.push(...activeViolations);
+
+      // Recalculate mitra scores against valid non-DW violations
+      const recalculatedMitra = (result.mitraList || []).map((m) => {
+        const mViolations = activeViolations.filter(
+          (v) => v.mitra.trim().toLowerCase() === m.nama.trim().toLowerCase(),
+        );
+        const realSkor = mViolations.reduce((acc, v) => acc + (v.poin || 0), 0);
+        const realTotal = mViolations.length;
+        const realAktif = mViolations.filter((v) => v.status !== "Closed").length;
+        return {
+          ...m,
+          skor: realSkor,
+          totalPelanggaran: realTotal,
+          pelanggaranAktif: realAktif,
+        };
+      });
 
       // Otomatis sinkronisasi data yang telah dibersihkan kembali ke IndexedDB jika ada perubahan
       if (
         activeViolations.length !== result.violations.length ||
-        activeViolations.some((v, idx) => v.jenis !== result.violations[idx]?.jenis)
+        activeViolations.some((v, idx) => v.jenis !== result.violations[idx]?.jenis) ||
+        recalculatedMitra.some((m, idx) => m.skor !== result.mitraList[idx]?.skor)
       ) {
-        void saveCustomDataToIndexedDB(activeViolations, result.mitraList);
+        void saveCustomDataToIndexedDB(activeViolations, recalculatedMitra);
       }
 
-      if (result.mitraList.length > 0) {
+      if (recalculatedMitra.length > 0) {
         mitraList.length = 0;
-        mitraList.push(...result.mitraList);
+        mitraList.push(...recalculatedMitra);
       }
 
       window.dispatchEvent(new CustomEvent("iconguard-data-hydrated"));
@@ -1018,23 +1060,25 @@ export function getCustomViolationsFromStorage(): Violation[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
-    if (!raw) return violations.length > 0 ? cleanK3Violations(violations.filter(isRealViolation)) : [];
+    if (!raw) return violations.length > 0 ? cleanK3Violations(violations.filter(isRealViolation)).filter(isRealViolation) : [];
     const list = JSON.parse(raw) as Violation[];
     const cleaned = cleanK3Violations(
       list
         .filter(isRealViolation)
         .map(sanitizeViolation)
-    );
+    ).filter(isRealViolation);
     if (
       cleaned.length !== list.length ||
       cleaned.some((v, idx) => v.jenis !== list[idx]?.jenis)
     ) {
-      localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(cleaned));
+      try {
+        localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(cleaned));
+      } catch {}
       void saveCustomDataToIndexedDB(cleaned, getCustomMitraListFromStorage());
     }
     return cleaned;
   } catch {
-    return violations.length > 0 ? cleanK3Violations(violations.filter(isRealViolation)) : [];
+    return violations.length > 0 ? cleanK3Violations(violations.filter(isRealViolation)).filter(isRealViolation) : [];
   }
 }
 
@@ -1105,12 +1149,15 @@ export function restoreCustomViolationsFromStorage() {
   try {
     const raw = localStorage.getItem(CUSTOM_VIOLATIONS_KEY);
     const parsedList: Violation[] = raw ? JSON.parse(raw) : [];
-    const list = cleanK3Violations(parsedList.map(sanitizeViolation));
+    const list = cleanK3Violations(parsedList.map(sanitizeViolation)).filter(isRealViolation);
     if (list.length !== parsedList.length || list.some((v, idx) => v.jenis !== parsedList[idx]?.jenis)) {
-      localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(list));
+      try {
+        localStorage.setItem(CUSTOM_VIOLATIONS_KEY, JSON.stringify(list));
+      } catch {}
       void saveCustomDataToIndexedDB(list, getCustomMitraListFromStorage());
     }
     const deletedIds = new Set(getDeletedViolationIds());
+    violations.length = 0;
     for (const item of [...list].reverse()) {
       if (!isRealViolation(item) || deletedIds.has(item.id)) continue;
       const existing = violations.find((v) => v.id === item.id || (v.idPa === item.idPa && v.jenis === item.jenis));
@@ -1124,14 +1171,26 @@ export function restoreCustomViolationsFromStorage() {
     const rawMitra = localStorage.getItem(CUSTOM_MITRA_KEY);
     const savedMitra: Mitra[] = rawMitra ? JSON.parse(rawMitra) : [];
     if (savedMitra.length > 0) {
-      for (const m of savedMitra) {
-        const idx = mitraList.findIndex((item) => item.nama.toLowerCase() === m.nama.toLowerCase());
-        if (idx >= 0) {
-          mitraList[idx] = m;
-        } else {
-          mitraList.unshift(m);
-        }
-      }
+      const recalculatedMitra = savedMitra.map((m) => {
+        const mViolations = violations.filter(
+          (v) => v.mitra.trim().toLowerCase() === m.nama.trim().toLowerCase() && isRealViolation(v),
+        );
+        const realSkor = mViolations.reduce((acc, v) => acc + (v.poin || 0), 0);
+        const realTotal = mViolations.length;
+        const realAktif = mViolations.filter((v) => v.status !== "Closed").length;
+        return {
+          ...m,
+          skor: realSkor,
+          totalPelanggaran: realTotal,
+          pelanggaranAktif: realAktif,
+        };
+      });
+
+      mitraList.length = 0;
+      mitraList.push(...recalculatedMitra);
+      try {
+        localStorage.setItem(CUSTOM_MITRA_KEY, JSON.stringify(mitraList));
+      } catch {}
     }
   } catch {
     // ignore storage errors

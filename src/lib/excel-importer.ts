@@ -556,15 +556,19 @@ export function processAndImportData(
       // 12 Kolom yang dilarang dimasukkan sebagai temuan / poin PTS:
       // DW gudang, lokasi FAT-Pelanggan, Selisih DW dari FAT-lokasi, QC STATUS DW, QC Stiker ONT,
       // QC PENAMPILAN, QC K3, QC INSTALASI, Remark Stiker ONT, Remark Penampilan, Remark k3, Remark Instalasi & DW
+      // Serta seluruh kategori Kabel DW / Drop Wire (material, bukan pelanggaran teknis/K3, tidak kena PTS)
       if (
         hLower.startsWith("remark") ||
         hClean.startsWith("remark") ||
         hLower.startsWith("qc") ||
         hClean.startsWith("qc") ||
-        hClean.includes("dwgudang") ||
+        hClean.includes("dw") ||
+        hLower.includes("drop wire") ||
+        hClean.includes("dropwire") ||
         hClean.includes("lokasifat") ||
-        hClean.includes("selisihdw") ||
-        hClean.includes("fatlokasi")
+        hClean.includes("fatlokasi") ||
+        hClean.includes("material") ||
+        hLower.includes("material")
       ) {
         return false;
       }
