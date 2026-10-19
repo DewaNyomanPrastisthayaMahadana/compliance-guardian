@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   ArrowRight,
+  Scale,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AppShell, PageHeader } from "@/components/app-shell";
@@ -43,7 +44,7 @@ export const Route = createFileRoute("/faq")({
       {
         property: "og:description",
         content:
-          "Panduan lengkap kategori K3, Penampilan, QC Instalasi, perhitungan Scorecard Mitra, dan Portal Klarifikasi.",
+          "Panduan lengkap bobot poin pelanggaran (PTS), kategori K3, Penampilan, QC Instalasi, perhitungan Scorecard Mitra, dan Portal Klarifikasi.",
       },
     ],
   }),
@@ -52,11 +53,12 @@ export const Route = createFileRoute("/faq")({
 
 type FaqCategory =
   | "semua"
-  | "umum"
+  | "pts"
   | "kategori"
   | "scorecard"
   | "klarifikasi"
-  | "data";
+  | "data"
+  | "umum";
 
 interface FaqItem {
   id: string;
@@ -69,14 +71,83 @@ interface FaqItem {
 
 const faqCategories: { id: FaqCategory; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "semua", label: "Semua Topik", icon: CircleHelp },
-  { id: "umum", label: "Umum & Akses", icon: UsersRound },
+  { id: "pts", label: "Poin Pelanggaran (PTS)", icon: Scale },
   { id: "kategori", label: "K3, Penampilan & Instalasi", icon: HardHat },
   { id: "scorecard", label: "Scorecard & Zona Mitra", icon: Award },
   { id: "klarifikasi", label: "Klarifikasi & Status Tiket", icon: MessageSquareShare },
   { id: "data", label: "Import & Export Data", icon: FileSpreadsheet },
+  { id: "umum", label: "Umum & Akses", icon: UsersRound },
 ];
 
 const faqItems: FaqItem[] = [
+  {
+    id: "pts-1",
+    category: "pts",
+    categoryLabel: "Poin Pelanggaran (PTS)",
+    question: "Apa itu Poin Pelanggaran (PTS) dan bagaimana sistem menentukannya?",
+    answer:
+      "Poin Pelanggaran (PTS) adalah sistem penilaian bobot sanksi numerik otomatis yang dikenakan pada setiap temuan ketidaksesuaian standar di lapangan. Poin ini dibebankan kepada Petugas Lapangan yang bertugas dan diakumulasikan ke penilaian kinerja Perusahaan Mitra. Besaran PTS ditentukan berdasarkan Tingkat Keparahan (Severity):",
+    bullets: [
+      "Pelanggaran Berat = 8 PTS: Dikenakan pada ketidakpatuhan K3 kritikal berisiko keselamatan jiwa serta pelanggaran teknis instalasi utama pada rumah pelanggan.",
+      "Pelanggaran Sedang = 5 PTS: Dikenakan pada ketidaksesuaian standar perangkat keras, kualitas redaman optik, atau kelengkapan administrasi instalasi.",
+      "Pelanggaran Ringan = 2 PTS: Dikenakan pada ketidaksesuaian minor seperti kelengkapan dokumentasi foto, aplikasi, atau stiker barcode ONT.",
+    ],
+  },
+  {
+    id: "pts-2",
+    category: "pts",
+    categoryLabel: "Poin Pelanggaran (PTS)",
+    question: "Berapa rincian bobot poin PTS untuk masing-masing dari 24 parameter checklist QC?",
+    answer:
+      "Setiap parameter pemeriksaan QC lapangan memiliki bobot poin sanksi standar yang terintegrasi di seluruh modul sistem:",
+    bullets: [
+      "Bobot 8 PTS (Berat): K3 Awal Helm, K3 Awal Sarung Tangan, K3 Awal Rompi, K3 Awal Body Harnes, Penampilan Awal - Lengan Panjang, K3 Awal Sepatu, Instalasi S-Clamp dan Hookclam di Rumah, K3 Akhir Helm, K3 Akhir Sarung Tangan, K3 Akhir Rompi, K3 Akhir Body Harnes, Penampilan Akhir - Lengan Panjang, K3 Akhir Sepatu.",
+      "Bobot 5 PTS (Sedang): ID FAT, Kerapian Instalasi Tiang Listrik, OPM FAT -25 dB, Serial Number (SN) ONT, OPM ONT -26 dB, Uji Kecepatan (Speedtest), Berita Acara Aktivasi (BAA).",
+      "Bobot 2 PTS (Ringan): Pemasangan Stiker Barcode ONT, Foto Bersama Pelanggan, Foto Depan Rumah Pelanggan, Registrasi & Penggunaan Aplikasi My Icon.",
+    ],
+  },
+  {
+    id: "pts-3",
+    category: "pts",
+    categoryLabel: "Poin Pelanggaran (PTS)",
+    question: "Mengapa Kabel DW (Drop Wire), Selisih DW, dan status Needkonfirm TIDAK dikenakan PTS (0 PTS)?",
+    answer:
+      "Sistem IconGuard menerapkan aturan pemisahan tegas antara pelanggaran disiplin/teknis dengan aspek pemakaian material serta status klarifikasi sementara:",
+    bullets: [
+      "Kabel DW / Drop Wire (Material Bebas PTS): Temuan seperti 'Kabel DW terlalu panjang', 'DW gudang', 'Selisih DW dari FAT-lokasi', maupun 'QC STATUS DW' diklasifikasikan murni sebagai evaluasi pemakaian material (meterage / logistik), BUKAN pelanggaran K3 atau instalasi teknis, sehingga TIDAK dijadikan tiket pelanggaran dan TIDAK dikenakan poin penalti (0 PTS).",
+      "Status Needkonfirm / Pending (Bebas PTS): Status yang masih memerlukan konfirmasi lapangan atau menunggu klarifikasi belum dinyatakan bersalah (NOK final). Agar poin petugas tidak terbebani secara prematur sebelum adanya kepastian faktual, status ini tidak dikenakan PTS.",
+      "Kolom Remark & QC Status: Kolom ringkasan pengawas (Remark K3, Remark Penampilan, Remark Instalasi & DW, QC K3, QC Instalasi) merupakan catatan deskriptif pengawas dan bukan tiket temuan checklist mandiri sehingga tidak menimbulkan poin PTS.",
+    ],
+  },
+  {
+    id: "pts-4",
+    category: "pts",
+    categoryLabel: "Poin Pelanggaran (PTS)",
+    question: "Bagaimana akumulasi PTS memengaruhi penilaian Petugas Lapangan?",
+    answer:
+      "Seluruh tiket pelanggaran sah yang dilakukan oleh seorang petugas akan menjumlahkan poin PTS pada profil petugas tersebut di menu Scorecard Mitra. Sistem menyajikan informasi total poin PTS, total kasus, status aktif/selesai, serta jenis pelanggaran yang paling sering dilakukan. Petugas dengan total PTS tinggi masuk dalam daftar perhatian khusus untuk pembinaan (coaching), pelatihan ulang K3, atau evaluasi penugasan lapangan.",
+  },
+  {
+    id: "pts-5",
+    category: "pts",
+    categoryLabel: "Poin Pelanggaran (PTS)",
+    question: "Bagaimana akumulasi PTS menentukan Zona Kepatuhan Mitra (Hijau, Kuning, Merah)?",
+    answer:
+      "Akumulasi total poin PTS dari seluruh petugas di bawah naungan suatu perusahaan mitra menentukan Zona Kepatuhan pada Scorecard Mitra:",
+    bullets: [
+      "Zona Hijau (< 15 Poin): Kategori Kepatuhan Aman / Sangat Baik. Tingkat kepatuhan standar K3 dan mutu kerja berjalan dengan baik.",
+      "Zona Kuning (15 – 29 Poin): Kategori Peringatan / Waspada. Mitra perlu segera melakukan evaluasi internal dan menyelesaikan perbaikan atas tiket terbuka.",
+      "Zona Merah (≥ 30 Poin): Kategori Kritis / Evaluasi Khusus. Menandakan tingginya frekuensi ketidaksesuaian lapangan yang dapat memicu surat peringatan manajemen (SP), penahanan alokasi pekerjaan, hingga evaluasi kontrak kerja sama.",
+    ],
+  },
+  {
+    id: "pts-6",
+    category: "pts",
+    categoryLabel: "Poin Pelanggaran (PTS)",
+    question: "Bagaimana prosedur klarifikasi untuk menindaklanjuti poin PTS temuan?",
+    answer:
+      "Mitra atau Petugas dapat membuka menu 'Portal Klarifikasi' (/portal), memilih tiket pelanggaran terkait, lalu mengisi kronologi tindak lanjut serta mengunggah Berita Acara Klarifikasi (BAK) dan bukti foto perbaikan lapangan (Before–After). Setelah diverifikasi dan disetujui oleh tim QC (status Closed), tindak lanjut perbaikan tercatat secara resmi sebagai bukti kepatuhan yang telah diselesaikan.",
+  },
   {
     id: "umum-1",
     category: "umum",
@@ -251,7 +322,7 @@ function FaqPage() {
 
       {/* Ringkasan Panduan Cepat */}
       <div
-        className="dashboard-enter mb-6 grid gap-4 md:grid-cols-3"
+        className="dashboard-enter mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4"
         style={{ animationDelay: "80ms" }}
       >
         <Card className="border-primary/15 bg-card/95 shadow-xs">
@@ -270,20 +341,52 @@ function FaqPage() {
             <div className="flex items-start gap-2">
               <HardHat className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
               <span>
-                <strong className="text-foreground">K3:</strong> Helm Safety, Safety Belt, Sepatu Safety, dan Tangga.
+                <strong className="text-foreground">K3:</strong> Helm, Rompi, Harnes, Sepatu, Sarung Tangan.
               </span>
             </div>
             <div className="flex items-start gap-2">
               <Shirt className="mt-0.5 size-3.5 shrink-0 text-sky-600" />
               <span>
-                <strong className="text-foreground">Penampilan:</strong> Baju Lengan Panjang &amp; Rompi (Awal &amp; Akhir).
+                <strong className="text-foreground">Penampilan:</strong> Baju Lengan Panjang (Awal &amp; Akhir).
               </span>
             </div>
             <div className="flex items-start gap-2">
               <Cable className="mt-0.5 size-3.5 shrink-0 text-indigo-600" />
               <span>
-                <strong className="text-foreground">Instalasi:</strong> Kerapian tarikan kabel, aksesoris &amp; redaman.
+                <strong className="text-foreground">Instalasi:</strong> S-Clamp, ID FAT, OPM, SN ONT, BAA.
               </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary/15 bg-card/95 shadow-xs">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600">
+                <Scale className="size-5" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold">Skema Poin Sanksi (PTS)</CardTitle>
+                <CardDescription className="text-xs">Bobot penalti per temuan</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1.5 pt-1 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between rounded-md bg-rose-500/5 px-2.5 py-1">
+              <span className="font-medium text-rose-700">Berat (K3 &amp; S-Clamp)</span>
+              <span className="font-mono font-bold text-foreground">8 Pts</span>
+            </div>
+            <div className="flex items-center justify-between rounded-md bg-amber-500/5 px-2.5 py-1">
+              <span className="font-medium text-amber-700">Sedang (FAT, ONT, BAA)</span>
+              <span className="font-mono font-bold text-foreground">5 Pts</span>
+            </div>
+            <div className="flex items-center justify-between rounded-md bg-sky-500/5 px-2.5 py-1">
+              <span className="font-medium text-sky-700">Ringan (Stiker, Foto, App)</span>
+              <span className="font-mono font-bold text-foreground">2 Pts</span>
+            </div>
+            <div className="flex items-center justify-between rounded-md bg-emerald-500/5 px-2.5 py-1">
+              <span className="font-medium text-emerald-700">Material DW &amp; Konfirm</span>
+              <span className="font-mono font-bold text-emerald-700">0 Pts (Bebas PTS)</span>
             </div>
           </CardContent>
         </Card>
@@ -300,20 +403,20 @@ function FaqPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2 pt-1 text-xs text-muted-foreground">
-            <div className="flex items-center justify-between rounded-md bg-emerald-500/5 px-2.5 py-1.5">
+          <CardContent className="space-y-1.5 pt-1 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between rounded-md bg-emerald-500/5 px-2.5 py-1">
               <span className="flex items-center gap-1.5 font-medium text-emerald-700">
                 <CheckCircle2 className="size-3.5" /> Zona Hijau
               </span>
               <span className="font-mono font-semibold text-foreground">&lt; 15 Poin</span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-amber-500/5 px-2.5 py-1.5">
+            <div className="flex items-center justify-between rounded-md bg-amber-500/5 px-2.5 py-1">
               <span className="flex items-center gap-1.5 font-medium text-amber-700">
                 <AlertTriangle className="size-3.5" /> Zona Kuning
               </span>
               <span className="font-mono font-semibold text-foreground">15 – 29 Poin</span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-rose-500/5 px-2.5 py-1.5">
+            <div className="flex items-center justify-between rounded-md bg-rose-500/5 px-2.5 py-1">
               <span className="flex items-center gap-1.5 font-medium text-rose-700">
                 <ShieldAlert className="size-3.5" /> Zona Merah
               </span>
@@ -334,11 +437,10 @@ function FaqPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2.5 pt-1 text-xs text-muted-foreground">
+          <CardContent className="space-y-2 pt-1 text-xs text-muted-foreground">
             <p className="leading-relaxed">
-              Setiap temuan wajib ditindaklanjuti oleh mitra dengan mengunggah{" "}
-              <strong className="text-foreground">Berita Acara Klarifikasi (BAK)</strong> dan foto perbaikan{" "}
-              <strong className="text-foreground">Before–After</strong> sebelum batas waktu berakhir.
+              Tindak lanjut wajib mengunggah dokumen <strong className="text-foreground">BAK</strong> dan foto{" "}
+              <strong className="text-foreground">Before–After</strong> sebelum deadline.
             </p>
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
               <StatusPill tone="warning">Open</StatusPill>
@@ -361,7 +463,7 @@ function FaqPage() {
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari pertanyaan atau kata kunci (misal: Lengan Panjang, Zona Merah, Import Excel, SBU)..."
+                placeholder="Cari pertanyaan atau kata kunci (misal: Poin PTS, Kabel DW, Lengan Panjang, Zona Merah, Import Excel)..."
                 className="h-10 pl-10 text-sm"
               />
             </div>
@@ -439,7 +541,7 @@ function FaqPage() {
               </p>
             </div>
           ) : (
-            <Accordion type="multiple" defaultValue={[filteredFaqs[0]?.id ?? "umum-1"]} className="w-full">
+            <Accordion type="multiple" defaultValue={[filteredFaqs[0]?.id ?? "pts-1"]} className="w-full">
               {filteredFaqs.map((item) => (
                 <AccordionItem key={item.id} value={item.id} className="border-border/70">
                   <AccordionTrigger className="py-4 hover:no-underline">
