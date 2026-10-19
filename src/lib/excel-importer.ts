@@ -491,10 +491,28 @@ function normalizeDate(val: any): string {
 }
 
 // Mengecek apakah suatu nilai checklist menandakan adanya temuan/pelanggaran (misal: NOK, Tidak, Silang, 0)
+// Needkonfirm / Need Confirm / Konfirmasi TIDAK dimasukkan sebagai pelanggaran / PTS
 function isChecklistViolation(val: any): boolean {
   if (val === undefined || val === null) return false;
   const str = String(val).trim().toLowerCase();
-  if (!str || str === "-" || str === "—" || str === "n/a" || str === "na" || str === "ok") return false;
+  if (
+    !str ||
+    str === "-" ||
+    str === "—" ||
+    str === "n/a" ||
+    str === "na" ||
+    str === "ok" ||
+    str.includes("needkonfirm") ||
+    str.includes("need konfirm") ||
+    str.includes("needconfirm") ||
+    str.includes("need confirm") ||
+    str.includes("konfirm") ||
+    str.includes("confirm") ||
+    str.includes("pending") ||
+    str.includes("menunggu")
+  ) {
+    return false;
+  }
   return (
     str === "nok" ||
     str === "not ok" ||
@@ -508,8 +526,7 @@ function isChecklistViolation(val: any): boolean {
     str.includes("temuan") ||
     str.includes("kurang") ||
     str.includes("rusak") ||
-    str.includes("kendor") ||
-    str.includes("redaman")
+    str.includes("kendor")
   );
 }
 
@@ -536,19 +553,18 @@ export function processAndImportData(
       const hLower = h.toLowerCase().trim();
       const hClean = hLower.replace(/[^a-z0-9]/g, "");
 
-      // Kolom status QC summary, remark, dan pengukuran jarak drop wire TIDAK BOLEH menjadi checklist temuan
+      // 12 Kolom yang dilarang dimasukkan sebagai temuan / poin PTS:
+      // DW gudang, lokasi FAT-Pelanggan, Selisih DW dari FAT-lokasi, QC STATUS DW, QC Stiker ONT,
+      // QC PENAMPILAN, QC K3, QC INSTALASI, Remark Stiker ONT, Remark Penampilan, Remark k3, Remark Instalasi & DW
       if (
         hLower.startsWith("remark") ||
-        hLower.startsWith("qc ") ||
-        hLower.startsWith("qc_") ||
-        hClean.startsWith("qcstatus") ||
-        hClean.startsWith("qck3") ||
-        hClean.startsWith("qcinstalasi") ||
-        hClean.startsWith("qcpenampilan") ||
-        hClean.startsWith("qcstiker") ||
+        hClean.startsWith("remark") ||
+        hLower.startsWith("qc") ||
+        hClean.startsWith("qc") ||
         hClean.includes("dwgudang") ||
         hClean.includes("lokasifat") ||
-        hClean.includes("selisihdw")
+        hClean.includes("selisihdw") ||
+        hClean.includes("fatlokasi")
       ) {
         return false;
       }
@@ -693,16 +709,7 @@ export function processAndImportData(
       checklistResults[col.label] = strVal;
     });
 
-    // Periksa apakah ada temuan K3 Awal spesifik (Helm, Rompi, Body Harness, dll)
-    const specificK3AwalNokCols = matchedChecklistCols.filter(
-      (col) => K3_AWAL_ITEMS.includes(col.key) && isChecklistViolation(String(row[col.headerName!] ?? "").trim())
-    );
-
-    // Periksa apakah ada temuan K3 Akhir spesifik (Helm, Rompi, Body Harness, dll)
-    const specificK3AkhirNokCols = matchedChecklistCols.filter(
-      (col) => K3_AKHIR_ITEMS.includes(col.key) && isChecklistViolation(String(row[col.headerName!] ?? "").trim())
-    );
-
+    // Kumpulkan hasil seluruh checklist teknis murni di baris ini yang dinyatakan NOK
     matchedChecklistCols.forEach((col) => {
       const val = row[col.headerName!];
       const strVal = String(val ?? "").trim();
@@ -711,109 +718,10 @@ export function processAndImportData(
       }
     });
 
-    // Fallback: Jika ada kolom "k3 awal First" NOK tapi tidak ada satupun dari 6 kolom K3 Awal yang NOK
-    if (specificK3AwalNokCols.length === 0) {
-      const firstAwalHeader = allHeaders.find((h) => {
-        const hClean = h.toLowerCase().replace(/[^a-z0-9]/g, "");
-        return hClean === "k3awalfirst" || hClean === "awalfirst" || hClean === "k3first";
-      });
-      if (firstAwalHeader && isChecklistViolation(String(row[firstAwalHeader] ?? "").trim())) {
-        const remLower = String(row["Remark k3"] || row["remark k3"] || row["Remark Penampilan"] || row["Remark"] || row["KET"] || "").toLowerCase();
-        let label = "k3 awal helm";
-        if (remLower.includes("sarung") || remLower.includes("tangan")) label = "k3 awal sarung tangan";
-        else if (remLower.includes("rompi")) label = "k3 awal rompi";
-        else if (remLower.includes("harnes") || remLower.includes("harness")) label = "k3 awal body harnes";
-        else if (remLower.includes("lengan") || remLower.includes("baju") || remLower.includes("seragam")) label = "Penampilan Awal - Lengan Panjang";
-        else if (remLower.includes("sepatu")) label = "k3 awal sepatu";
-        else if (remLower.includes("helm")) label = "k3 awal helm";
-
-        violationsInRow.push({
-          key: "k3_awal_fallback",
-          label,
-          defaultSeverity: "Berat",
-          aliases: [],
-          headerName: firstAwalHeader,
-        });
-      }
-    }
-
-    // Fallback: Jika ada kolom "k3 akhir First" NOK tapi tidak ada satupun dari 6 kolom K3 Akhir yang NOK
-    if (specificK3AkhirNokCols.length === 0) {
-      const firstAkhirHeader = allHeaders.find((h) => {
-        const hClean = h.toLowerCase().replace(/[^a-z0-9]/g, "");
-        return hClean === "k3akhirfirst" || hClean === "akhirfirst";
-      });
-      if (firstAkhirHeader && isChecklistViolation(String(row[firstAkhirHeader] ?? "").trim())) {
-        const remLower = String(row["Remark k3"] || row["remark k3"] || row["Remark Penampilan"] || row["Remark"] || row["KET"] || "").toLowerCase();
-        let label = "k3 akhir helm";
-        if (remLower.includes("sarung") || remLower.includes("tangan")) label = "k3 akhir sarung tangan";
-        else if (remLower.includes("rompi")) label = "k3 akhir rompi";
-        else if (remLower.includes("harnes") || remLower.includes("harness")) label = "k3 akhir body harnes";
-        else if (remLower.includes("lengan") || remLower.includes("baju") || remLower.includes("seragam")) label = "Penampilan Akhir - Lengan Panjang";
-        else if (remLower.includes("sepatu")) label = "k3 akhir sepatu";
-        else if (remLower.includes("helm")) label = "k3 akhir helm";
-
-        violationsInRow.push({
-          key: "k3_akhir_fallback",
-          label,
-          defaultSeverity: "Berat",
-          aliases: [],
-          headerName: firstAkhirHeader,
-        });
-      }
-    }
-
     const rowQcK3 = String(row["QC K3"] ?? row["qc k3"] ?? "").trim().toUpperCase();
     const rowQcInst = String(row["QC INSTALASI"] ?? row["qc instalasi"] ?? "").trim().toUpperCase();
 
-    // Jika tidak ada checklist spesifik yang terdeteksi NOK, periksa apakah ada catatan K3 / Instalasi spesifik
-    if (violationsInRow.length === 0) {
-      const remarkK3 = String(row["Remark k3"] || row["remark k3"] || row["Remark Penampilan"] || row["KET"] || row["Remark"] || "").trim();
-      const remarkInst = String(row["Remark Instalasi & DW"] || row["Remark Instalasi"] || row["remark instalasi"] || "").trim();
-
-      if (remarkK3) {
-        const remLower = remarkK3.toLowerCase();
-        let label: string | null = null;
-        if (remLower.includes("helm")) label = "k3 awal helm";
-        else if (remLower.includes("sarung") || remLower.includes("tangan")) label = "k3 awal sarung tangan";
-        else if (remLower.includes("lengan") || remLower.includes("baju") || remLower.includes("seragam")) label = "Penampilan Awal - Lengan Panjang";
-        else if (remLower.includes("sepatu")) label = "k3 awal sepatu";
-        else if (remLower.includes("harnes") || remLower.includes("harness")) label = "k3 awal body harnes";
-        else if (remLower.includes("rompi")) label = "k3 awal rompi";
-
-        if (label) {
-          violationsInRow.push({
-            key: "k3_summary",
-            label,
-            defaultSeverity: "Berat",
-            aliases: [],
-            headerName: "Remark k3",
-          });
-        }
-      }
-
-      if (remarkInst) {
-        const remLower = remarkInst.toLowerCase();
-        let label: string | null = null;
-        if (remLower.includes("redaman") || remLower.includes("opm")) label = "OPM FAT -25 dB";
-        else if (remLower.includes("fat") && !remLower.includes("selisih") && !remLower.includes("lokasi")) label = "ID FAT";
-        else if (remLower.includes("stiker barcode") || (remLower.includes("stiker") && !remLower.includes("qc") && !remLower.includes("remark"))) label = "Stiker ONT";
-        else if (remLower.includes("baa")) label = "BAA";
-        else if (remLower.includes("s-clam") || remLower.includes("sclam") || remLower.includes("hookclam")) label = "Instalasi S-Clamp dan Hookclam di Rumah";
-
-        if (label) {
-          violationsInRow.push({
-            key: "inst_summary",
-            label,
-            defaultSeverity: "Sedang",
-            aliases: [],
-            headerName: "Remark Instalasi & DW",
-          });
-        }
-      }
-    }
-
-    // Jika ada checklist yang NOK / Temuan, buat tiket pelanggaran untuk tiap item temuan
+    // Jika ada checklist yang NOK / Temuan riil, buat tiket pelanggaran untuk tiap item temuan
     if (violationsInRow.length > 0) {
       violationsInRow.forEach((vCol) => {
         const severity: Severity = vCol.defaultSeverity;

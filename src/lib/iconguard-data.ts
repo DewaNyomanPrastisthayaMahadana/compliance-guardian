@@ -785,7 +785,18 @@ export function isRealViolation(v?: { jenis?: string | null; poin?: number | nul
     return false;
   }
 
-  // 2. Abaikan DW gudang, lokasi FAT-Pelanggan, dan Selisih DW (bukan temuan pelanggaran K3/teknis)
+  // 2. Abaikan status Needkonfirm / Need Confirm (bukan pelanggaran sah / tidak boleh diberi PTS)
+  if (
+    j.includes("needkonfirm") ||
+    j.includes("need konfirm") ||
+    j.includes("needconfirm") ||
+    clean.includes("needkonfirm") ||
+    (v.status && v.status.toLowerCase().includes("needkonfirm"))
+  ) {
+    return false;
+  }
+
+  // 3. Abaikan DW gudang, lokasi FAT-Pelanggan, dan Selisih DW (bukan temuan pelanggaran K3/teknis)
   if (
     j.includes("dw gudang") ||
     clean.includes("dwgudang") ||
@@ -793,13 +804,16 @@ export function isRealViolation(v?: { jenis?: string | null; poin?: number | nul
     j.includes("lokasi fat pelanggan") ||
     clean.includes("lokasifatpelanggan") ||
     j.includes("selisih dw") ||
-    clean.includes("selisihdw")
+    clean.includes("selisihdw") ||
+    clean.includes("fatlokasi")
   ) {
     return false;
   }
 
-  // 3. Abaikan kolom status / ringkasan QC (QC STATUS DW, QC Stiker ONT, QC PENAMPILAN, QC K3, QC INSTALASI)
+  // 4. Abaikan kolom status / ringkasan QC (QC STATUS DW, QC Stiker ONT, QC PENAMPILAN, QC K3, QC INSTALASI)
   if (
+    j.startsWith("qc") ||
+    clean.startsWith("qc") ||
     j.includes("qc status dw") ||
     clean.includes("qcstatusdw") ||
     j.includes("qc stiker ont") ||
@@ -814,9 +828,10 @@ export function isRealViolation(v?: { jenis?: string | null; poin?: number | nul
     return false;
   }
 
-  // 4. Abaikan seluruh kolom Remark (Remark Stiker ONT, Remark Penampilan, Remark k3, Remark Instalasi & DW, dsb)
+  // 5. Abaikan seluruh kolom Remark (Remark Stiker ONT, Remark Penampilan, Remark k3, Remark Instalasi & DW, dsb)
   if (
     j.startsWith("remark") ||
+    clean.startsWith("remark") ||
     j.includes("remark stiker ont") ||
     j.includes("remark penampilan") ||
     j.includes("remark k3") ||
@@ -847,7 +862,6 @@ export function sanitizeViolation(v: Violation): Violation {
   return v;
 }
 
-/**
 /**
  * Membersihkan data pelanggaran K3 dari label generik/duplikat "First".
  * Mengubah temuan K3 menjadi rincian ketentuan spesifik (Helm, Rompi, Body Harness, Sarung Tangan, Sepatu, Lengan Panjang)
@@ -923,7 +937,7 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
 
     const note = `${v.catatan || ""} ${JSON.stringify(v.checklistResults || {})}`.toLowerCase();
     const prefix = isFirstAwal ? "k3 awal" : "k3 akhir";
-    let concreteJenis = `${prefix} helm`;
+    let concreteJenis: string | null = null;
     if (note.includes("sarung") || note.includes("tangan")) concreteJenis = `${prefix} sarung tangan`;
     else if (note.includes("rompi")) concreteJenis = `${prefix} rompi`;
     else if (note.includes("harnes") || note.includes("harness")) concreteJenis = `${prefix} body harnes`;
@@ -932,10 +946,12 @@ export function cleanK3Violations(list: Violation[]): Violation[] {
     else if (note.includes("sepatu")) concreteJenis = `${prefix} sepatu`;
     else if (note.includes("helm")) concreteJenis = `${prefix} helm`;
 
-    cleaned.push({
-      ...v,
-      jenis: concreteJenis,
-    });
+    if (concreteJenis) {
+      cleaned.push({
+        ...v,
+        jenis: concreteJenis,
+      });
+    }
   });
 
   return cleaned.filter(isRealViolation);
