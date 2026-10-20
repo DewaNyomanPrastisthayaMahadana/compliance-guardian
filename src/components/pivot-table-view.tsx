@@ -95,7 +95,8 @@ const normalizeSbuKey = (rawSbu?: string): string | null => {
   if (!rawSbu) return null;
   const s = rawSbu.toUpperCase();
   for (const k of Object.keys(SBU_REGIONAL_CONFIG)) {
-    if (s.includes(k) || s.includes(SBU_REGIONAL_CONFIG[k].label)) return k;
+    const cfg = SBU_REGIONAL_CONFIG[k];
+    if (cfg && (s.includes(k) || s.includes(cfg.label))) return k;
   }
   return null;
 };
@@ -105,9 +106,9 @@ const getMonthColumn = (dateRaw?: string): string | null => {
   const d = (dateRaw || "").trim().toLowerCase();
   if (!d || d === "—") return null;
   const num = d.match(/^(\d{4})-(\d{1,2})-\d{1,2}/) || null;
-  if (num) return MONTHS_ALL[parseInt(num[2]) - 1] ?? null;
+  if (num && num[2]) return MONTHS_ALL[parseInt(num[2]) - 1] ?? null;
   const num2 = d.match(/^\d{1,2}[/.-](\d{1,2})[/.-]\d{4}/);
-  if (num2) return MONTHS_ALL[parseInt(num2[1]) - 1] ?? null;
+  if (num2 && num2[1]) return MONTHS_ALL[parseInt(num2[1]) - 1] ?? null;
   const names: [string, string][] = [
     ["jan", "Jan"], ["feb", "Feb"], ["mar", "Mar"], ["apr", "Apr"], ["mei", "Mei"], ["may", "Mei"],
     ["jun", "Jun"], ["jul", "Jul"], ["agu", "Agu"], ["aug", "Agu"], ["sep", "Sep"],
@@ -156,10 +157,11 @@ export function PivotTableView({ violations }: PivotTableProps) {
       const out: Record<string, Record<string, number>> = {};
 
       sbuKeys.forEach((sbu) => {
-        out[sbu] = {};
+        const sbuOut: Record<string, number> = {};
         MONTHS_ALL.forEach((m) => {
-          out[sbu][m] = src[sbu]?.[m]?.size || 0;
+          sbuOut[m] = src[sbu]?.[m]?.size || 0;
         });
+        out[sbu] = sbuOut;
       });
       return out;
     };
@@ -201,7 +203,7 @@ export function PivotTableView({ violations }: PivotTableProps) {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(countSheet(qcInstalasiTableData)), "QC INSTALASI NOK");
 
     const hcRows = sbuKeys.map((sbu) => {
-      const row: Record<string, any> = { "SBU Regional": SBU_REGIONAL_CONFIG[sbu].label };
+      const row: Record<string, any> = { "SBU Regional": SBU_REGIONAL_CONFIG[sbu]?.label || sbu };
       let total = 0;
       months.forEach((m) => {
         const val = pencapaianHcData[sbu]?.[m] || 0;
@@ -432,7 +434,7 @@ export function PivotTableView({ violations }: PivotTableProps) {
                 let rowTotal = 0;
                 return (
                   <TableRow key={`hc-${sbu}`} className="text-xs hover:bg-muted/40">
-                    <TableCell className="font-semibold font-mono text-foreground">{conf.label}</TableCell>
+                    <TableCell className="font-semibold font-mono text-foreground">{conf?.label || sbu}</TableCell>
                     {months.map((m) => {
                       const val = pencapaianHcData[sbu]?.[m] || 0;
                       rowTotal += val;
@@ -513,7 +515,7 @@ export function PivotTableView({ violations }: PivotTableProps) {
                   let sumHc = 0;
                   return (
                     <TableRow key={`ratio-k3-${sbu}`} className="text-xs hover:bg-muted/40">
-                      <TableCell className="font-semibold font-mono text-foreground">{conf.label}</TableCell>
+                      <TableCell className="font-semibold font-mono text-foreground">{conf?.label || sbu}</TableCell>
                       {months.map((m) => {
                         const nok = qcK3TableData[sbu]?.[m] || 0;
                         const hc = pencapaianHcData[sbu]?.[m] || 0;
@@ -604,7 +606,7 @@ export function PivotTableView({ violations }: PivotTableProps) {
                   let sumHc = 0;
                   return (
                     <TableRow key={`ratio-inst-${sbu}`} className="text-xs hover:bg-muted/40">
-                      <TableCell className="font-semibold font-mono text-foreground">{conf.label}</TableCell>
+                      <TableCell className="font-semibold font-mono text-foreground">{conf?.label || sbu}</TableCell>
                       {months.map((m) => {
                         const nok = qcInstalasiTableData[sbu]?.[m] || 0;
                         const hc = pencapaianHcData[sbu]?.[m] || 0;

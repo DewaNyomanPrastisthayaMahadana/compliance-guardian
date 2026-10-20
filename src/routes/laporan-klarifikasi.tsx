@@ -99,8 +99,8 @@ function getClarificationInfo(v: Violation) {
   if (!note && v.catatan && v.catatan.includes("[Klarifikasi diajukan")) {
     const match = v.catatan.match(/\[Klarifikasi diajukan oleh ([^\]]+)\]:\s*([\s\S]+)/);
     if (match) {
-      submittedBy = match[1];
-      note = match[2];
+      if (match[1]) submittedBy = match[1];
+      if (match[2]) note = match[2];
     }
   }
 

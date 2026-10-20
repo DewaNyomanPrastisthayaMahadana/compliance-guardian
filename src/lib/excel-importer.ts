@@ -7,6 +7,7 @@ import {
   sbuOptions,
   isRealViolation,
   type Violation,
+  type Mitra,
   type Severity,
 } from "./iconguard-data";
 
@@ -35,9 +36,9 @@ export type ExcelImportResult = {
   success: boolean;
   totalParsed: number;
   totalImported: number;
-  violations?: Violation[];
-  mitraList?: Mitra[];
-  errors?: string[];
+  violations?: Violation[] | undefined;
+  mitraList?: Mitra[] | undefined;
+  errors?: string[] | undefined;
 };
 
 export type ChecklistColDef = {
@@ -470,7 +471,7 @@ function normalizeDate(val: any): string {
   }
   const s = String(val).trim();
   const m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m1) {
+  if (m1 && m1[1] && m1[2] && m1[3]) {
     const y = parseInt(m1[1]);
     const m = parseInt(m1[2]);
     const d = parseInt(m1[3]);
@@ -479,7 +480,7 @@ function normalizeDate(val: any): string {
     }
   }
   const m2 = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
-  if (m2) {
+  if (m2 && m2[1] && m2[2] && m2[3]) {
     const d = parseInt(m2[1]);
     const m = parseInt(m2[2]);
     const y = parseInt(m2[3]);

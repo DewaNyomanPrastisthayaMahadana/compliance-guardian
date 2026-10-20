@@ -346,7 +346,17 @@ export const bootstrapSuperAdmin = createServerFn({ method: "POST" })
     }
   });
 
-export const listManagedUsers = createServerFn({ method: "GET" }).handler(async () => {
+export type ManagedUser = {
+  id: string;
+  name: string;
+  email: string;
+  appRole: string;
+  organization: string | null;
+  sbu: string | null;
+  banned: boolean;
+};
+
+export const listManagedUsers = createServerFn({ method: "GET" }).handler(async (): Promise<ManagedUser[]> => {
   const { request } = getRequestAuth();
   await requireSuperAdmin(request);
   return getAuthDb(request)
@@ -457,7 +467,7 @@ export const updateManagedUser = createServerFn({ method: "POST" })
       throw new Error("Role akun ini tidak dapat diubah dari halaman pengguna.");
     }
 
-    const [updatedUser] = await db
+    await db
       .update(user)
       .set({
         appRole: data.appRole,
@@ -465,12 +475,9 @@ export const updateManagedUser = createServerFn({ method: "POST" })
         sbu: data.sbu || null,
         updatedAt: new Date(),
       })
-      .where(eq(user.id, data.id))
-      .returning({ id: user.id });
+      .where(eq(user.id, data.id));
 
-    if (!updatedUser) throw new Error("Perubahan role akun gagal disimpan.");
-
-    return { id: updatedUser.id, appRole: data.appRole, sbu: data.sbu };
+    return { id: data.id, appRole: data.appRole, sbu: data.sbu };
   });
 
 export const deleteManagedUser = createServerFn({ method: "POST" })
@@ -493,11 +500,9 @@ export const deleteManagedUser = createServerFn({ method: "POST" })
       throw new Error("Akun ini tidak dapat dihapus dari halaman pengguna.");
     }
 
-    const [deletedUser] = await db
+    await db
       .delete(user)
-      .where(eq(user.id, data.id))
-      .returning({ id: user.id });
+      .where(eq(user.id, data.id));
 
-    if (!deletedUser) throw new Error("Akun gagal dihapus.");
-    return { id: deletedUser.id };
+    return { id: data.id };
   });

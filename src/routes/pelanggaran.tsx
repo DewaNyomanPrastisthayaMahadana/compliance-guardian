@@ -143,7 +143,7 @@ function PelanggaranPage() {
 
     // Sudah dalam format "22 Jan 2026"
     const mWord = s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
-    if (mWord) {
+    if (mWord && mWord[1] && mWord[2] && mWord[3]) {
       const d = parseInt(mWord[1], 10);
       const m = mWord[2];
       const y = mWord[3];
@@ -152,7 +152,7 @@ function PelanggaranPage() {
 
     // Format ISO "YYYY-MM-DD" atau "YYYY-MM-DDTHH:mm:ss"
     const mIso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (mIso) {
+    if (mIso && mIso[1] && mIso[2] && mIso[3]) {
       const y = mIso[1];
       const m = parseInt(mIso[2], 10);
       const d = parseInt(mIso[3], 10);
@@ -163,7 +163,7 @@ function PelanggaranPage() {
 
     // Format "DD/MM/YYYY" atau "DD-MM-YYYY"
     const mSlash = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
-    if (mSlash) {
+    if (mSlash && mSlash[1] && mSlash[2] && mSlash[3]) {
       const d = parseInt(mSlash[1], 10);
       const m = parseInt(mSlash[2], 10);
       const y = mSlash[3];
@@ -276,7 +276,7 @@ function PelanggaranPage() {
     const parseSortDate = (dStr: string): number => {
       const months = ["jan", "feb", "mar", "apr", "mei", "jun", "jul", "agu", "sep", "okt", "nov", "des"];
       const match = dStr.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
-      if (match) {
+      if (match && match[1] && match[2] && match[3]) {
         const day = parseInt(match[1], 10);
         const mIdx = months.indexOf(match[2].toLowerCase());
         const year = parseInt(match[3], 10);

@@ -21,6 +21,7 @@ import {
   listManagedUsers,
   requireRouteAccess,
   updateManagedUser,
+  type ManagedUser,
 } from "@/lib/auth-server";
 import { roleOptions, type AppRole } from "@/lib/demo-access";
 import { sbuOptions, getSbuInfo } from "@/lib/iconguard-data";
@@ -61,29 +62,29 @@ export const Route = createFileRoute("/data-akun")({
   component: DataAkunPage,
 });
 
-function getRoleTone(role: AppRole): "sky" | "emerald" | "amber" | "slate" {
+function getRoleTone(role?: string | null): "info" | "success" | "warning" | "neutral" {
   switch (role) {
     case "super-admin":
-      return "sky";
     case "petugas-sbu":
-      return "sky";
+      return "info";
     case "mitra":
-      return "emerald";
+      return "success";
     case "petugas-mitra":
-      return "amber";
+      return "warning";
     default:
-      return "slate";
+      return "neutral";
   }
 }
 
-function getRoleLabel(role: AppRole): string {
+function getRoleLabel(role?: string | null): string {
+  if (!role) return "—";
   return roleOptions.find((r) => r.value === role)?.label || role;
 }
 
 function DataAkunPage() {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
-  const [users, setUsers] = useState<Awaited<ReturnType<typeof listManagedUsers>>>([]);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -395,8 +396,8 @@ function DataAkunPage() {
                                       ? (sbuOptions.find((s) => s.code === user.sbu)?.label
                                           ? `${user.sbu} · ${sbuOptions.find((s) => s.code === user.sbu)?.label}`
                                           : user.sbu)
-                                      : getSbuInfo(user.organization).code !== "—"
-                                      ? getSbuInfo(user.organization).full
+                                      : getSbuInfo(user.organization ?? undefined).code !== "—"
+                                      ? getSbuInfo(user.organization ?? undefined).full
                                       : user.appRole === "super-admin"
                                       ? "Semua SBU (Nasional)"
                                       : "—"}

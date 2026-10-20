@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import {
   type Violation,
+  type Mitra,
   jenisDominan,
   mitraList,
   trenBulanan,
@@ -80,7 +81,7 @@ function extractYearKey(dateRaw?: string, fallbackId?: string): string {
       return String(new Date().getFullYear());
     }
     const match = s.match(/\b(20\d{2})\b/);
-    if (match) return match[1];
+    if (match && match[1]) return match[1];
 
     try {
       const parsed = new Date(s);
@@ -93,7 +94,7 @@ function extractYearKey(dateRaw?: string, fallbackId?: string): string {
 
   if (fallbackId) {
     const matchId = String(fallbackId).match(/\b(20\d{2})\b/);
-    if (matchId) return matchId[1];
+    if (matchId && matchId[1]) return matchId[1];
   }
 
   return String(new Date().getFullYear());
@@ -2421,7 +2422,7 @@ function Dashboard() {
             const nameLower = selectedK3Detail.name.toLowerCase();
             const isK3Item = nameLower.includes("k3");
             const isPenampilanItem = nameLower.includes("penampilan") || nameLower.includes("lengan");
-            const openCount = selectedK3Detail.tickets.filter((t) => t.status === "Open" || t.status === "Pending").length;
+            const openCount = selectedK3Detail.tickets.filter((t) => t.status !== "Closed").length;
             const closedCount = selectedK3Detail.tickets.filter((t) => t.status === "Closed").length;
 
             return (

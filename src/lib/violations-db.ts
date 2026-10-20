@@ -17,11 +17,11 @@ function getPool(request?: Request): mysql.Pool {
   if (!dbPool) {
     const env = getAuthEnvironment(request);
     dbPool = mysql.createPool({
-      host: env.MYSQL_HOST,
-      port: Number(env.MYSQL_PORT),
-      user: env.MYSQL_USER,
-      password: env.MYSQL_PASSWORD,
-      database: env.MYSQL_DATABASE,
+      host: env.MYSQL_HOST || "localhost",
+      port: Number(env.MYSQL_PORT) || 3306,
+      user: env.MYSQL_USER || "root",
+      password: env.MYSQL_PASSWORD || "",
+      database: env.MYSQL_DATABASE || "iconguard",
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
@@ -80,7 +80,7 @@ function parseDateForMysql(d?: string | null): string | null {
   const str = String(d).trim();
   if (str.includes("/")) {
     const parts = str.split("/");
-    if (parts.length === 3) {
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
       const day = parts[0].padStart(2, "0");
       const month = parts[1].padStart(2, "0");
       const year = parts[2];

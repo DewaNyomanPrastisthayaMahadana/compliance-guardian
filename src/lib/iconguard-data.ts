@@ -168,23 +168,23 @@ export type Violation = {
   deadline: string;
   poin: number;
   catatan: string;
-  bukti?: string[];
-  checklistResults?: Record<string, string>;
+  bukti?: string[] | undefined;
+  checklistResults?: Record<string, string> | undefined;
   /** Status kolom "QC K3" dari Excel (OK/NOK), dipakai untuk pivot table */
-  qcK3?: string;
+  qcK3?: string | undefined;
   /** Status kolom "QC INSTALASI" dari Excel (OK/NOK), dipakai untuk pivot table */
-  qcInstalasi?: string;
+  qcInstalasi?: string | undefined;
   /** Metadata klarifikasi yang diajukan oleh mitra/petugas */
-  clarificationSubmittedAt?: string;
-  clarificationSubmittedBy?: string;
-  clarificationRole?: string;
-  clarificationOrganization?: string;
-  clarificationNote?: string;
-  clarificationBakFile?: string;
-  clarificationEvidenceFile?: string;
-  clarificationReviewedAt?: string;
-  clarificationReviewedBy?: string;
-  clarificationReviewNote?: string;
+  clarificationSubmittedAt?: string | undefined;
+  clarificationSubmittedBy?: string | undefined;
+  clarificationRole?: string | undefined;
+  clarificationOrganization?: string | undefined;
+  clarificationNote?: string | undefined;
+  clarificationBakFile?: string | undefined;
+  clarificationEvidenceFile?: string | undefined;
+  clarificationReviewedAt?: string | undefined;
+  clarificationReviewedBy?: string | undefined;
+  clarificationReviewNote?: string | undefined;
 };
 
 export function fixedSeverityForViolation(jenis: string): Severity | null {

@@ -34,7 +34,7 @@ function BuatAkunPage() {
   const [sbu, setSbu] = useState<string>("");
   const [organization, setOrganization] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [createdUser, setCreatedUser] = useState<{ name: string; email: string; role: string; sbu?: string } | null>(null);
+  const [createdUser, setCreatedUser] = useState<{ name: string; email: string; role: string; sbu?: string | undefined } | null>(null);
 
   const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

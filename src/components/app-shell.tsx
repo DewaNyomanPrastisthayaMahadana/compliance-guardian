@@ -421,6 +421,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               .filter((path) => ROUTE_TAB_DEFINITIONS[path] && canAccessPath(currentUser.appRole, path))
               .map((tabPath) => {
                 const def = ROUTE_TAB_DEFINITIONS[tabPath];
+                if (!def) return null;
                 const isActive = currentPath === tabPath;
                 const Icon = def.icon;
                 return (
@@ -491,6 +492,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       </p>
                       {closedAccessibleTabs.map((path) => {
                         const def = ROUTE_TAB_DEFINITIONS[path];
+                        if (!def) return null;
                         const Icon = def.icon;
                         return (
                           <button

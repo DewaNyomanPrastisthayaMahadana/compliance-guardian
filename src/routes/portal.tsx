@@ -296,8 +296,8 @@ function PortalPage() {
         clarificationRole: currentUser?.appRole || "mitra",
         clarificationOrganization: currentUser?.organization || currentUser?.sbu || "Mitra",
         clarificationNote: explanation.trim(),
-        clarificationBakFile: clarificationFile?.files?.[0]?.name,
-        clarificationEvidenceFile: evidenceFiles?.files?.[0]?.name,
+        ...(clarificationFile?.files?.[0]?.name ? { clarificationBakFile: clarificationFile.files[0].name } : {}),
+        ...(evidenceFiles?.files?.[0]?.name ? { clarificationEvidenceFile: evidenceFiles.files[0].name } : {}),
       };
 
       syncViolationRecord(updated);
@@ -1236,7 +1236,7 @@ function UploadBox({
         className="hidden"
         onChange={(e) => {
           const files = e.target.files;
-          if (files && files.length > 0) {
+          if (files && files[0]) {
             setFileName(files[0].name);
           }
         }}
