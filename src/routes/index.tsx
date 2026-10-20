@@ -625,24 +625,36 @@ function Dashboard() {
       value: String(activeViolationsCount),
       icon: AlertTriangle,
       tone: "critical" as const,
+      iconColor: "text-rose-600 dark:text-rose-400",
+      iconBg: "bg-rose-500/10",
+      borderColor: "hover:border-rose-500/30",
     },
     {
       label: "Menunggu Klarifikasi",
       value: String(pendingClarificationCount),
       icon: Clock,
       tone: "warning" as const,
+      iconColor: "text-amber-600 dark:text-amber-400",
+      iconBg: "bg-amber-500/10",
+      borderColor: "hover:border-amber-500/30",
     },
     {
       label: "Laporan Closed",
       value: String(closedCount),
       icon: CheckCircle2,
       tone: "success" as const,
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+      iconBg: "bg-emerald-500/10",
+      borderColor: "hover:border-emerald-500/30",
     },
     {
       label: "Rata-rata Kepatuhan",
       value: `${avgCompliance}%`,
       icon: Gauge,
       tone: "info" as const,
+      iconColor: "text-sky-600 dark:text-sky-400",
+      iconBg: "bg-sky-500/10",
+      borderColor: "hover:border-sky-500/30",
     },
   ];
 
@@ -1074,25 +1086,36 @@ function Dashboard() {
         {kpis.map((kpi, index) => (
           <Card
             key={kpi.label}
-            className="dashboard-enter relative overflow-hidden transition-all duration-200"
+            className={cn(
+              "dashboard-enter relative overflow-hidden transition-all duration-200 border border-border/70 hover:shadow-sm",
+              kpi.borderColor
+            )}
             style={{ animationDelay: `${index * 90 + 80}ms` }}
           >
-            {(selectedSbuForKpi || selectedYear !== "ALL") && (
-              <span className="absolute top-2.5 right-2.5 text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
-                {[selectedYear !== "ALL" ? `Tahun ${selectedYear}` : null, selectedSbuForKpi].filter(Boolean).join(" · ")}
-              </span>
-            )}
-            <CardContent className="flex min-h-24 items-center gap-3.5 !p-4">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary shrink-0">
-                <kpi.icon className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-medium text-muted-foreground leading-snug">
+            <CardContent className="flex items-center justify-between p-4 sm:p-5">
+              <div className="min-w-0 flex-1 pr-2">
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate" title={kpi.label}>
                   {kpi.label}
                 </p>
-                <p className="text-2xl font-bold tracking-tight text-foreground mt-0.5">
-                  {kpi.value}
-                </p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <p className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                    {kpi.value}
+                  </p>
+                  {selectedSbuForKpi && (
+                    <span className="text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                      {selectedSbuForKpi}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div
+                className={cn(
+                  "flex size-11 items-center justify-center rounded-xl shrink-0 transition-transform duration-200",
+                  kpi.iconBg,
+                  kpi.iconColor
+                )}
+              >
+                <kpi.icon className="size-5" />
               </div>
             </CardContent>
           </Card>
