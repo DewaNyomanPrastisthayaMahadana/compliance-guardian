@@ -986,7 +986,7 @@ function Dashboard() {
       <div className="dashboard-enter">
         <PageHeader
           title="Executive Dashboard"
-          description="Ringkasan kepatuhan mitra Divisi Material dan Jasa, diperbarui real-time."
+          description="Ringkasan sampling kepatuhan mitra Divisi Material dan Jasa."
           action={
             <div className="flex flex-wrap items-center gap-2">
               {/* Filter Tahun */}

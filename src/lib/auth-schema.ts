@@ -1,18 +1,19 @@
 import { relations } from "drizzle-orm";
 import {
-  mysqlTable,
+  pgTable,
   varchar,
   text,
   boolean,
-  int,
+  integer,
+  serial,
   date,
-  json,
+  jsonb,
   timestamp,
   index,
   uniqueIndex,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/pg-core";
 
-export const user = mysqlTable(
+export const user = pgTable(
   "user",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
@@ -20,12 +21,12 @@ export const user = mysqlTable(
     email: varchar("email", { length: 255 }).notNull(),
     emailVerified: boolean("emailVerified").notNull().default(false),
     image: text("image"),
-    createdAt: timestamp("createdAt", { fsp: 3 }).notNull(),
-    updatedAt: timestamp("updatedAt", { fsp: 3 }).notNull(),
+    createdAt: timestamp("createdAt").notNull(),
+    updatedAt: timestamp("updatedAt").notNull(),
     role: varchar("role", { length: 50 }).notNull().default("user"),
     banned: boolean("banned").notNull().default(false),
     banReason: text("banReason"),
-    banExpires: timestamp("banExpires", { fsp: 3 }),
+    banExpires: timestamp("banExpires"),
     appRole: varchar("appRole", { length: 50 }).notNull().default("mitra"),
     organization: varchar("organization", { length: 255 }),
     sbu: varchar("sbu", { length: 100 }),
@@ -33,14 +34,14 @@ export const user = mysqlTable(
   (table) => [uniqueIndex("user_email_unique").on(table.email)],
 );
 
-export const session = mysqlTable(
+export const session = pgTable(
   "session",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    expiresAt: timestamp("expiresAt", { fsp: 3 }).notNull(),
+    expiresAt: timestamp("expiresAt").notNull(),
     token: varchar("token", { length: 255 }).notNull(),
-    createdAt: timestamp("createdAt", { fsp: 3 }).notNull(),
-    updatedAt: timestamp("updatedAt", { fsp: 3 }).notNull(),
+    createdAt: timestamp("createdAt").notNull(),
+    updatedAt: timestamp("updatedAt").notNull(),
     ipAddress: varchar("ipAddress", { length: 45 }),
     userAgent: text("userAgent"),
     userId: varchar("userId", { length: 64 })
@@ -54,7 +55,7 @@ export const session = mysqlTable(
   ],
 );
 
-export const account = mysqlTable(
+export const account = pgTable(
   "account",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
@@ -66,40 +67,40 @@ export const account = mysqlTable(
     accessToken: text("accessToken"),
     refreshToken: text("refreshToken"),
     idToken: text("idToken"),
-    accessTokenExpiresAt: timestamp("accessTokenExpiresAt", { fsp: 3 }),
-    refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt", { fsp: 3 }),
+    accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
+    refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
     scope: text("scope"),
     password: text("password"),
-    createdAt: timestamp("createdAt", { fsp: 3 }).notNull(),
-    updatedAt: timestamp("updatedAt", { fsp: 3 }).notNull(),
+    createdAt: timestamp("createdAt").notNull(),
+    updatedAt: timestamp("updatedAt").notNull(),
   },
   (table) => [index("account_user_id_index").on(table.userId)],
 );
 
-export const verification = mysqlTable(
+export const verification = pgTable(
   "verification",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
     identifier: varchar("identifier", { length: 255 }).notNull(),
     value: text("value").notNull(),
-    expiresAt: timestamp("expiresAt", { fsp: 3 }).notNull(),
-    createdAt: timestamp("createdAt", { fsp: 3 }),
-    updatedAt: timestamp("updatedAt", { fsp: 3 }),
+    expiresAt: timestamp("expiresAt").notNull(),
+    createdAt: timestamp("createdAt"),
+    updatedAt: timestamp("updatedAt"),
   },
   (table) => [index("verification_identifier_index").on(table.identifier)],
 );
 
-export const authBootstrapGuard = mysqlTable("auth_bootstrap_guard", {
-  id: int("id").primaryKey(),
+export const authBootstrapGuard = pgTable("auth_bootstrap_guard", {
+  id: integer("id").primaryKey(),
 });
 
-export const sbu = mysqlTable("sbu", {
+export const sbu = pgTable("sbu", {
   kode: varchar("kode", { length: 20 }).primaryKey(),
   namaWilayah: varchar("nama_wilayah", { length: 100 }).notNull(),
 });
 
-export const mitra = mysqlTable("mitra", {
-  id: int("id").primaryKey().autoincrement(),
+export const mitra = pgTable("mitra", {
+  id: serial("id").primaryKey(),
   namaMitra: varchar("nama_mitra", { length: 150 }).notNull().unique(),
   sbuKode: varchar("sbu_kode", { length: 20 }).notNull().references(() => sbu.kode),
   kontrak: varchar("kontrak", { length: 100 }),
@@ -107,28 +108,28 @@ export const mitra = mysqlTable("mitra", {
   picEmail: varchar("pic_email", { length: 150 }),
   picTelepon: varchar("pic_telepon", { length: 30 }),
   statusZona: varchar("status_zona", { length: 20 }).notNull().default("Aman"),
-  totalPelanggaran: int("total_pelanggaran").notNull().default(0),
-  totalPoin: int("total_poin").notNull().default(0),
+  totalPelanggaran: integer("total_pelanggaran").notNull().default(0),
+  totalPoin: integer("total_poin").notNull().default(0),
   extraData: text("extra_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const petugas = mysqlTable("petugas", {
-  id: int("id").primaryKey().autoincrement(),
-  mitraId: int("mitra_id").notNull().references(() => mitra.id, { onDelete: "cascade" }),
+export const petugas = pgTable("petugas", {
+  id: serial("id").primaryKey(),
+  mitraId: integer("mitra_id").notNull().references(() => mitra.id, { onDelete: "cascade" }),
   namaPetugas: varchar("nama_petugas", { length: 150 }).notNull(),
   noTelepon: varchar("no_telepon", { length: 30 }),
   statusAktif: boolean("status_aktif").notNull().default(true),
-  totalPelanggaran: int("total_pelanggaran").notNull().default(0),
+  totalPelanggaran: integer("total_pelanggaran").notNull().default(0),
 });
 
-export const inspections = mysqlTable("inspections", {
-  id: int("id").primaryKey().autoincrement(),
-  uploadId: int("upload_id"),
+export const inspections = pgTable("inspections", {
+  id: serial("id").primaryKey(),
+  uploadId: integer("upload_id"),
   idPa: varchar("id_pa", { length: 50 }).notNull(),
   sbuKode: varchar("sbu_kode", { length: 20 }).notNull(),
-  mitraId: int("mitra_id").notNull().references(() => mitra.id),
-  petugasId: int("petugas_id").references(() => petugas.id),
+  mitraId: integer("mitra_id").notNull().references(() => mitra.id),
+  petugasId: integer("petugas_id").references(() => petugas.id),
   namaMitra: varchar("nama_mitra", { length: 150 }).notNull(),
   namaPetugas: varchar("nama_petugas", { length: 150 }).notNull(),
   tanggalCek: date("tanggal_cek", { mode: "string" }),
@@ -138,38 +139,38 @@ export const inspections = mysqlTable("inspections", {
   petugasMonitoringPusat: varchar("petugas_monitoring_pusat", { length: 100 }),
   kp: varchar("kp", { length: 50 }),
   idFat: varchar("id_fat", { length: 50 }),
-  dwGudang: int("dw_gudang"),
-  lokasiFatPelanggan: int("lokasi_fat_pelanggan"),
+  dwGudang: integer("dw_gudang"),
+  lokasiFatPelanggan: integer("lokasi_fat_pelanggan"),
   qcK3: varchar("qc_k3", { length: 10 }).default("OK"),
   qcInstalasi: varchar("qc_instalasi", { length: 10 }).default("OK"),
   statusKeseluruhan: varchar("status_keseluruhan", { length: 10 }).notNull().default("OK"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const violations = mysqlTable("violations", {
+export const violations = pgTable("violations", {
   id: varchar("id", { length: 50 }).primaryKey(),
-  inspectionId: int("inspection_id").references(() => inspections.id),
+  inspectionId: integer("inspection_id").references(() => inspections.id),
   idPa: varchar("id_pa", { length: 50 }).notNull(),
   sbuKode: varchar("sbu_kode", { length: 20 }).notNull(),
-  mitraId: int("mitra_id").notNull().references(() => mitra.id),
-  petugasId: int("petugas_id").references(() => petugas.id),
+  mitraId: integer("mitra_id").notNull().references(() => mitra.id),
+  petugasId: integer("petugas_id").references(() => petugas.id),
   namaMitra: varchar("nama_mitra", { length: 150 }).notNull(),
   namaPetugas: varchar("nama_petugas", { length: 150 }).notNull(),
   jenisPelanggaran: varchar("jenis_pelanggaran", { length: 255 }).notNull(),
   kategori: varchar("kategori", { length: 50 }).notNull().default("K3"),
   severity: varchar("severity", { length: 20 }).notNull().default("Sedang"),
-  poin: int("poin").notNull().default(5),
+  poin: integer("poin").notNull().default(5),
   status: varchar("status", { length: 50 }).notNull().default("Open"),
   tanggalCek: date("tanggal_cek", { mode: "string" }),
   deadlineKlarifikasi: date("deadline_klarifikasi", { mode: "string" }),
   catatan: text("catatan"),
-  buktiFotoUrls: json("bukti_foto_urls"),
+  buktiFotoUrls: jsonb("bukti_foto_urls"),
   extraData: text("extra_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const violationChecklists = mysqlTable("violation_checklists", {
-  id: int("id").primaryKey().autoincrement(),
+export const violationChecklists = pgTable("violation_checklists", {
+  id: serial("id").primaryKey(),
   violationId: varchar("violation_id", { length: 50 }).notNull().references(() => violations.id, { onDelete: "cascade" }),
   itemKey: varchar("item_key", { length: 100 }).notNull(),
   itemLabel: varchar("item_label", { length: 255 }).notNull(),
@@ -177,8 +178,8 @@ export const violationChecklists = mysqlTable("violation_checklists", {
   statusHasil: varchar("status_hasil", { length: 20 }).notNull().default("NOK"),
 });
 
-export const clarifications = mysqlTable("clarifications", {
-  id: int("id").primaryKey().autoincrement(),
+export const clarifications = pgTable("clarifications", {
+  id: serial("id").primaryKey(),
   violationId: varchar("violation_id", { length: 50 }).notNull().references(() => violations.id, { onDelete: "cascade" }),
   submittedByUserId: varchar("submitted_by_user_id", { length: 64 }).references(() => user.id),
   kronologiTindakLanjut: text("kronologi_tindak_lanjut").notNull(),

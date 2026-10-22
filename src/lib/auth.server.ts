@@ -4,8 +4,8 @@ import { betterAuth } from "better-auth";
 import { createAuthEndpoint, APIError } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import { z } from "zod";
 import { authSchema } from "@/lib/auth-schema";
 
@@ -13,6 +13,12 @@ type AuthEnvironment = {
   BETTER_AUTH_SECRET?: string | undefined;
   BETTER_AUTH_URL?: string | undefined;
   SUPER_ADMIN_SETUP_TOKEN?: string | undefined;
+  PG_HOST?: string | undefined;
+  PG_PORT?: string | number | undefined;
+  PG_USER?: string | undefined;
+  PG_PASSWORD?: string | undefined;
+  PG_DATABASE?: string | undefined;
+  DATABASE_URL?: string | undefined;
   MYSQL_HOST?: string | undefined;
   MYSQL_PORT?: string | number | undefined;
   MYSQL_USER?: string | undefined;
@@ -26,7 +32,7 @@ type CloudflareRequest = Request & {
   runtime?: { cloudflare?: { env?: AuthEnvironment } };
 };
 
-let pool: mysql.Pool | null = null;
+let pool: pg.Pool | null = null;
 let database: any = null;
 
 export function getAuthEnvironment(request?: Request): AuthEnvironment {
@@ -44,46 +50,49 @@ export function getAuthEnvironment(request?: Request): AuthEnvironment {
       cloudflareEnv?.SUPER_ADMIN_SETUP_TOKEN ||
       envMap["SUPER_ADMIN_SETUP_TOKEN"] ||
       "superadminsetup12345678901234567890123456789012",
-    MYSQL_HOST: cloudflareEnv?.MYSQL_HOST || envMap["MYSQL_HOST"] || "127.0.0.1",
-    MYSQL_PORT: cloudflareEnv?.MYSQL_PORT || envMap["MYSQL_PORT"] || 3306,
-    MYSQL_USER: cloudflareEnv?.MYSQL_USER || envMap["MYSQL_USER"] || "root",
-    MYSQL_PASSWORD: cloudflareEnv?.MYSQL_PASSWORD || envMap["MYSQL_PASSWORD"] || "",
-    MYSQL_DATABASE: cloudflareEnv?.MYSQL_DATABASE || envMap["MYSQL_DATABASE"] || "iconguard",
+    PG_HOST: cloudflareEnv?.PG_HOST || envMap["PG_HOST"] || envMap["MYSQL_HOST"] || "127.0.0.1",
+    PG_PORT: cloudflareEnv?.PG_PORT || envMap["PG_PORT"] || envMap["MYSQL_PORT"] || 5432,
+    PG_USER: cloudflareEnv?.PG_USER || envMap["PG_USER"] || envMap["MYSQL_USER"] || "deditt",
+    PG_PASSWORD: cloudflareEnv?.PG_PASSWORD ?? envMap["PG_PASSWORD"] ?? envMap["MYSQL_PASSWORD"] ?? "",
+    PG_DATABASE: cloudflareEnv?.PG_DATABASE || envMap["PG_DATABASE"] || envMap["MYSQL_DATABASE"] || "iconguard",
+    DATABASE_URL: cloudflareEnv?.DATABASE_URL || envMap["DATABASE_URL"],
     GOOGLE_CLIENT_ID: cloudflareEnv?.GOOGLE_CLIENT_ID || envMap["GOOGLE_CLIENT_ID"],
     GOOGLE_CLIENT_SECRET: cloudflareEnv?.GOOGLE_CLIENT_SECRET || envMap["GOOGLE_CLIENT_SECRET"],
   };
 }
 
 let schemaChecked = false;
-async function ensureSchemaUpdated(p: mysql.Pool) {
+async function ensureSchemaUpdated(p: pg.Pool) {
   if (schemaChecked) return;
   schemaChecked = true;
   try {
-    await p.query("ALTER TABLE `user` MODIFY COLUMN `appRole` VARCHAR(50) NOT NULL DEFAULT 'mitra'");
+    await p.query('ALTER TABLE "user" ALTER COLUMN "appRole" SET DEFAULT \'mitra\'');
   } catch {}
   try {
-    await p.query("ALTER TABLE `user` ADD COLUMN `sbu` VARCHAR(100) NULL AFTER `organization`");
+    await p.query('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "sbu" VARCHAR(100)');
   } catch {}
 }
 
 export function getAuthDb(request?: Request): any {
   if (!pool) {
     const env = getAuthEnvironment(request);
-    pool = mysql.createPool({
-      host: env.MYSQL_HOST || "127.0.0.1",
-      port: Number(env.MYSQL_PORT) || 3306,
-      user: env.MYSQL_USER || "root",
-      password: env.MYSQL_PASSWORD || "",
-      database: env.MYSQL_DATABASE || "iconguard",
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-    });
+    if (env.DATABASE_URL) {
+      pool = new pg.Pool({ connectionString: env.DATABASE_URL });
+    } else {
+      pool = new pg.Pool({
+        host: env.PG_HOST || "127.0.0.1",
+        port: Number(env.PG_PORT) || 5432,
+        user: env.PG_USER || "deditt",
+        password: env.PG_PASSWORD || "",
+        database: env.PG_DATABASE || "iconguard",
+        max: 10,
+      });
+    }
     void ensureSchemaUpdated(pool);
   }
 
   if (!database) {
-    database = drizzle(pool, { schema: authSchema, mode: "default" });
+    database = drizzle(pool, { schema: authSchema });
   }
 
   return database;
@@ -180,7 +189,7 @@ export function createAuth(request: Request) {
     secret,
     trustedOrigins,
     database: drizzleAdapter(db, {
-      provider: "mysql",
+      provider: "pg",
       schema: authSchema,
     }),
     emailAndPassword: {

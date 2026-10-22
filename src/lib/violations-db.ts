@@ -1,4 +1,4 @@
-import mysql from "mysql2/promise";
+import pg from "pg";
 import { getAuthEnvironment } from "@/lib/auth.server";
 import {
   type Violation,
@@ -11,23 +11,32 @@ import {
   isRealViolation,
 } from "@/lib/iconguard-data";
 
-let dbPool: mysql.Pool | null = null;
+let dbPool: pg.Pool | null = null;
 
-function getPool(request?: Request): mysql.Pool {
+function getPool(request?: Request): pg.Pool {
   if (!dbPool) {
     const env = getAuthEnvironment(request);
-    dbPool = mysql.createPool({
-      host: env.MYSQL_HOST || "localhost",
-      port: Number(env.MYSQL_PORT) || 3306,
-      user: env.MYSQL_USER || "root",
-      password: env.MYSQL_PASSWORD || "",
-      database: env.MYSQL_DATABASE || "iconguard",
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-    });
+    if (env.DATABASE_URL) {
+      dbPool = new pg.Pool({ connectionString: env.DATABASE_URL });
+    } else {
+      dbPool = new pg.Pool({
+        host: env.PG_HOST || "127.0.0.1",
+        port: Number(env.PG_PORT) || 5432,
+        user: env.PG_USER || "deditt",
+        password: env.PG_PASSWORD || "",
+        database: env.PG_DATABASE || "iconguard",
+        max: 10,
+      });
+    }
   }
   return dbPool;
+}
+
+async function querySql(sql: string, params: any[] = [], request?: Request): Promise<pg.QueryResult<any>> {
+  const pool = getPool(request);
+  let idx = 1;
+  const pgSql = sql.replace(/\?/g, () => `$${idx++}`);
+  return pool.query(pgSql, params);
 }
 
 const VALID_SBU_CODES = new Set([
@@ -68,15 +77,16 @@ function resolveKategori(jenis: string): "K3" | "Penampilan" | "Instalasi" {
     j.includes("penampilan") ||
     j.includes("baju") ||
     j.includes("lengan") ||
-    j.includes("seragam")
+    j.includes("seragam") ||
+    j.includes("tampilan")
   ) {
     return "Penampilan";
   }
   return "Instalasi";
 }
 
-function parseDateForMysql(d?: string | null): string | null {
-  if (!d || d === "—" || d === "-") return null;
+function parseDateForPostgres(d?: string): string | null {
+  if (!d || d === "—" || d === "Hari ini") return null;
   const str = String(d).trim();
   if (str.includes("/")) {
     const parts = str.split("/");
@@ -96,31 +106,20 @@ function parseDateForMysql(d?: string | null): string | null {
   return null;
 }
 
-function formatSqlDate(val: any): string {
-  if (!val) return "";
-  if (val instanceof Date) {
-    return val.toISOString().slice(0, 10);
-  }
-  return String(val);
-}
-
 /**
- * Mengambil daftar Pelanggaran langsung dari MySQL.
- * Jika MySQL memiliki data, sinkronkan ke memori server.
+ * Mengambil semua data pelanggaran dari PostgreSQL.
  */
 export async function fetchViolationsFromDb(request?: Request): Promise<Violation[]> {
   try {
-    const pool = getPool(request);
-    const [rows]: any = await pool.execute(`
-      SELECT * FROM violations ORDER BY created_at DESC
-    `);
+    const res = await querySql(`SELECT * FROM violations ORDER BY created_at DESC`, [], request);
+    const rows = res.rows;
 
     if (Array.isArray(rows) && rows.length > 0) {
       const dbViolations: Violation[] = rows.map((r: any) => {
         let extra: any = {};
         if (r.extra_data) {
           try {
-            extra = JSON.parse(r.extra_data);
+            extra = typeof r.extra_data === "string" ? JSON.parse(r.extra_data) : r.extra_data;
           } catch {}
         }
 
@@ -143,13 +142,12 @@ export async function fetchViolationsFromDb(request?: Request): Promise<Violatio
           severity: (r.severity as Severity) || "Sedang",
           status: (r.status as Status) || "Open",
           poin: Number(r.poin) || 0,
-          catatan: r.catatan || "",
-          bukti,
           sbu: sbuCode,
           lokasi: sbuInfo.label,
-          tanggalCek: formatSqlDate(r.tanggal_cek) || extra.tanggalCek,
-          deadline: formatSqlDate(r.deadline_klarifikasi) || extra.deadline,
-          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          catatan: r.catatan || "",
+          bukti: Array.isArray(bukti) ? bukti : [],
+          tanggalCek: r.tanggal_cek ? new Date(r.tanggal_cek).toISOString().slice(0, 10) : extra.tanggalCek,
+          deadline: r.deadline_klarifikasi ? new Date(r.deadline_klarifikasi).toISOString().slice(0, 10) : extra.deadline,
           checklistResults: extra.checklistResults,
           qcK3: extra.qcK3,
           qcInstalasi: extra.qcInstalasi,
@@ -161,46 +159,36 @@ export async function fetchViolationsFromDb(request?: Request): Promise<Violatio
           petugasMonitoringPusat: extra.petugasMonitoringPusat,
           tanggalAktivasi: extra.tanggalAktivasi,
           tanggalPermohonan: extra.tanggalPermohonan,
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
         };
       });
 
-      // Sinkronkan memori server
-      const filtered = dbViolations.filter(isRealViolation);
+      const validViolations = dbViolations.filter(isRealViolation);
       inMemoryViolations.length = 0;
-      inMemoryViolations.push(...filtered);
-
-      // Secara otomatis bersihkan temuan non-pelanggaran / DW kabel yang tersimpan di database
-      const invalidRows = dbViolations.filter((v) => !isRealViolation(v));
-      if (invalidRows.length > 0) {
-        const invalidIds = invalidRows.map((v) => v.id);
-        void pool.query("DELETE FROM violations WHERE id IN (?)", [invalidIds]).catch(() => {});
-      }
-
-      return filtered;
+      inMemoryViolations.push(...validViolations);
+      return validViolations;
     }
   } catch (error) {
-    console.error("Gagal mengambil violations dari MySQL, fallback ke memory:", error);
+    console.error("Gagal mengambil pelanggaran dari PostgreSQL, fallback ke memory:", error);
   }
 
-  return inMemoryViolations;
+  return inMemoryViolations.filter(isRealViolation);
 }
 
 /**
- * Mengambil daftar Mitra langsung dari MySQL.
+ * Mengambil daftar mitra dari PostgreSQL.
  */
 export async function fetchMitraFromDb(request?: Request): Promise<Mitra[]> {
   try {
-    const pool = getPool(request);
-    const [rows]: any = await pool.execute(`
-      SELECT * FROM mitra ORDER BY nama_mitra ASC
-    `);
+    const res = await querySql(`SELECT * FROM mitra ORDER BY nama_mitra ASC`, [], request);
+    const rows = res.rows;
 
     if (Array.isArray(rows) && rows.length > 0) {
       const dbMitra: Mitra[] = rows.map((r: any) => {
         let extra: any = {};
         if (r.extra_data) {
           try {
-            extra = JSON.parse(r.extra_data);
+            extra = typeof r.extra_data === "string" ? JSON.parse(r.extra_data) : r.extra_data;
           } catch {}
         }
         const sbuCode = r.sbu_kode || "01SBU";
@@ -224,14 +212,14 @@ export async function fetchMitraFromDb(request?: Request): Promise<Mitra[]> {
       return dbMitra;
     }
   } catch (error) {
-    console.error("Gagal mengambil mitra dari MySQL, fallback ke memory:", error);
+    console.error("Gagal mengambil mitra dari PostgreSQL, fallback ke memory:", error);
   }
 
   return inMemoryMitraList;
 }
 
 /**
- * Menyimpan data hasil import Excel ke MySQL secara permanen.
+ * Menyimpan data hasil import Excel ke PostgreSQL secara permanen.
  */
 export async function saveViolationsAndMitraToDb(
   newViolationsList: Violation[],
@@ -239,16 +227,14 @@ export async function saveViolationsAndMitraToDb(
   replaceAll = true,
   request?: Request,
 ): Promise<void> {
-  const pool = getPool(request);
   const filteredViolations = newViolationsList.filter(isRealViolation);
 
   // 1. Dapatkan atau buat ID untuk setiap Mitra
   const mitraIdMap = new Map<string, number>();
 
-  // Muat mitra yang ada di database
-  const [existingMitraRows]: any = await pool.execute("SELECT id, nama_mitra FROM mitra");
-  if (Array.isArray(existingMitraRows)) {
-    for (const row of existingMitraRows) {
+  const existingMitraRes = await querySql("SELECT id, nama_mitra FROM mitra", [], request);
+  if (Array.isArray(existingMitraRes.rows)) {
+    for (const row of existingMitraRes.rows) {
       mitraIdMap.set(String(row.nama_mitra).trim().toLowerCase(), row.id);
     }
   }
@@ -275,7 +261,7 @@ export async function saveViolationsAndMitraToDb(
     }
   }
 
-  // Simpan / update mitra ke MySQL
+  // Simpan / update mitra ke PostgreSQL
   for (const [key, m] of mitrasToProcess.entries()) {
     const sbuCode = resolveSbuCode(m.sbu || m.sbuCode);
     const extraData = JSON.stringify({
@@ -286,7 +272,7 @@ export async function saveViolationsAndMitraToDb(
 
     if (mitraIdMap.has(key)) {
       const existingId = mitraIdMap.get(key)!;
-      await pool.execute(
+      await querySql(
         `UPDATE mitra SET
            sbu_kode = ?,
            kontrak = ?,
@@ -295,28 +281,32 @@ export async function saveViolationsAndMitraToDb(
            total_poin = ?,
            extra_data = ?
          WHERE id = ?`,
-        [sbuCode, m.kontrak || null, m.pic || null, m.totalPelanggaran || 0, m.skor ? 100 - m.skor : 0, extraData, existingId]
+        [sbuCode, m.kontrak || null, m.pic || null, m.totalPelanggaran || 0, m.skor ? 100 - m.skor : 0, extraData, existingId],
+        request
       );
     } else {
-      const [insertRes]: any = await pool.execute(
+      const insertRes = await querySql(
         `INSERT INTO mitra (
            nama_mitra, sbu_kode, kontrak, pic_nama, status_zona, total_pelanggaran, total_poin, extra_data
-         ) VALUES (?, ?, ?, ?, 'Aman', ?, ?, ?)`,
-        [m.nama, sbuCode, m.kontrak || null, m.pic || null, m.totalPelanggaran || 0, m.skor ? 100 - m.skor : 0, extraData]
+         ) VALUES (?, ?, ?, ?, 'Aman', ?, ?, ?)
+         RETURNING id`,
+        [m.nama, sbuCode, m.kontrak || null, m.pic || null, m.totalPelanggaran || 0, m.skor ? 100 - m.skor : 0, extraData],
+        request
       );
-      mitraIdMap.set(key, insertRes.insertId);
+      if (insertRes.rows && insertRes.rows[0]) {
+        mitraIdMap.set(key, insertRes.rows[0].id);
+      }
     }
   }
 
   // 2. Jika replaceAll, kosongkan tabel violations lama terlebih dahulu
   if (replaceAll) {
-    // Hapus checklist dan klarifikasi terkait jika ada
-    await pool.execute("DELETE FROM violation_checklists");
-    await pool.execute("DELETE FROM clarifications");
-    await pool.execute("DELETE FROM violations");
+    await querySql("DELETE FROM violation_checklists", [], request);
+    await querySql("DELETE FROM clarifications", [], request);
+    await querySql("DELETE FROM violations", [], request);
   }
 
-  // 3. Simpan data pelanggaran ke MySQL
+  // 3. Simpan data pelanggaran ke PostgreSQL
   for (const v of filteredViolations) {
     const mitraKey = v.mitra.trim().toLowerCase();
     const mitraId = mitraIdMap.get(mitraKey) || 1;
@@ -342,38 +332,38 @@ export async function saveViolationsAndMitraToDb(
     });
 
     const buktiJson = JSON.stringify(v.bukti || []);
-    const tanggalCek = parseDateForMysql(v.tanggalCek);
-    const deadline = parseDateForMysql(v.deadline);
+    const tanggalCek = parseDateForPostgres(v.tanggalCek);
+    const deadline = parseDateForPostgres(v.deadline);
 
-    await pool.execute(
+    await querySql(
       `INSERT INTO violations (
          id, id_pa, sbu_kode, mitra_id, nama_mitra, nama_petugas,
          jenis_pelanggaran, kategori, severity, poin, status,
          tanggal_cek, deadline_klarifikasi, catatan, bukti_foto_urls, extra_data
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         id_pa = VALUES(id_pa),
-         sbu_kode = VALUES(sbu_kode),
-         mitra_id = VALUES(mitra_id),
-         nama_mitra = VALUES(nama_mitra),
-         nama_petugas = VALUES(nama_petugas),
-         jenis_pelanggaran = VALUES(jenis_pelanggaran),
-         kategori = VALUES(kategori),
-         severity = VALUES(severity),
-         poin = VALUES(poin),
-         status = VALUES(status),
-         tanggal_cek = VALUES(tanggal_cek),
-         deadline_klarifikasi = VALUES(deadline_klarifikasi),
-         catatan = VALUES(catatan),
-         bukti_foto_urls = VALUES(bukti_foto_urls),
-         extra_data = VALUES(extra_data)`,
+       ON CONFLICT (id) DO UPDATE SET
+         id_pa = EXCLUDED.id_pa,
+         sbu_kode = EXCLUDED.sbu_kode,
+         mitra_id = EXCLUDED.mitra_id,
+         nama_mitra = EXCLUDED.nama_mitra,
+         nama_petugas = EXCLUDED.nama_petugas,
+         jenis_pelanggaran = EXCLUDED.jenis_pelanggaran,
+         kategori = EXCLUDED.kategori,
+         severity = EXCLUDED.severity,
+         poin = EXCLUDED.poin,
+         status = EXCLUDED.status,
+         tanggal_cek = EXCLUDED.tanggal_cek,
+         deadline_klarifikasi = EXCLUDED.deadline_klarifikasi,
+         catatan = EXCLUDED.catatan,
+         bukti_foto_urls = EXCLUDED.bukti_foto_urls,
+         extra_data = EXCLUDED.extra_data`,
       [
         v.id,
         v.idPa,
         sbuCode,
         mitraId,
         v.mitra,
-        v.petugas || "Petugas Lapangan",
+        v.petugas,
         v.jenis,
         kategori,
         severity,
@@ -384,44 +374,39 @@ export async function saveViolationsAndMitraToDb(
         v.catatan || "",
         buktiJson,
         extraData,
-      ]
+      ],
+      request
     );
   }
 
-  // 4. Sinkronkan juga memori RAM agar request saat ini langsung mendapatkan data baru
   if (replaceAll) {
     inMemoryViolations.length = 0;
     inMemoryViolations.push(...filteredViolations);
-    if (newMitraList && newMitraList.length > 0) {
-      inMemoryMitraList.length = 0;
-      inMemoryMitraList.push(...newMitraList);
-    }
   } else {
     inMemoryViolations.unshift(...filteredViolations);
   }
 }
 
 /**
- * Menyimpan 1 tiket temuan baru (dari form Lapor) ke MySQL.
+ * Menyimpan 1 tiket temuan baru (dari form Lapor) ke PostgreSQL.
  */
 export async function insertSingleViolationToDb(data: any, request?: Request): Promise<Violation> {
-  const pool = getPool(request);
-
-  // Dapatkan atau buat mitra
-  const [mitraRows]: any = await pool.execute(
+  const mitraRows = await querySql(
     "SELECT id FROM mitra WHERE LOWER(nama_mitra) = LOWER(?) LIMIT 1",
-    [data.mitra.trim()]
+    [data.mitra.trim()],
+    request
   );
   let mitraId = 1;
   const sbuCode = resolveSbuCode(data.sbu);
-  if (Array.isArray(mitraRows) && mitraRows.length > 0) {
-    mitraId = mitraRows[0].id;
+  if (Array.isArray(mitraRows.rows) && mitraRows.rows.length > 0) {
+    mitraId = mitraRows.rows[0].id;
   } else {
-    const [ins]: any = await pool.execute(
-      "INSERT INTO mitra (nama_mitra, sbu_kode, status_zona) VALUES (?, ?, 'Aman')",
-      [data.mitra, sbuCode]
+    const ins = await querySql(
+      "INSERT INTO mitra (nama_mitra, sbu_kode, status_zona) VALUES (?, ?, 'Aman') RETURNING id",
+      [data.mitra, sbuCode],
+      request
     );
-    mitraId = ins.insertId;
+    mitraId = ins.rows[0].id;
   }
 
   const id = `VIO-${sbuCode}-${Date.now().toString().slice(-4)}`;
@@ -445,12 +430,12 @@ export async function insertSingleViolationToDb(data: any, request?: Request): P
     tanggalCek: data.tanggalCek,
   });
 
-  const tanggalCek = parseDateForMysql(data.tanggalCek);
+  const tanggalCek = parseDateForPostgres(data.tanggalCek);
   const deadlineDate = new Date();
   deadlineDate.setDate(deadlineDate.getDate() + 3);
   const deadline = deadlineDate.toISOString().slice(0, 10);
 
-  await pool.execute(
+  await querySql(
     `INSERT INTO violations (
        id, id_pa, sbu_kode, mitra_id, nama_mitra, nama_petugas,
        jenis_pelanggaran, kategori, severity, poin, status,
@@ -473,7 +458,8 @@ export async function insertSingleViolationToDb(data: any, request?: Request): P
       data.catatan || "",
       JSON.stringify(data.bukti || []),
       extraData,
-    ]
+    ],
+    request
   );
 
   const newViolation: Violation = {
@@ -510,16 +496,15 @@ export async function insertSingleViolationToDb(data: any, request?: Request): P
 }
 
 /**
- * Menghapus 1 tiket temuan dari MySQL.
+ * Menghapus 1 tiket temuan dari PostgreSQL.
  */
 export async function deleteSingleViolationFromDb(id: string, request?: Request): Promise<boolean> {
-  const pool = getPool(request);
-  await pool.execute("DELETE FROM violation_checklists WHERE violation_id = ?", [id]);
-  await pool.execute("DELETE FROM clarifications WHERE violation_id = ?", [id]);
-  const [res]: any = await pool.execute("DELETE FROM violations WHERE id = ?", [id]);
+  await querySql("DELETE FROM violation_checklists WHERE violation_id = ?", [id], request);
+  await querySql("DELETE FROM clarifications WHERE violation_id = ?", [id], request);
+  const res = await querySql("DELETE FROM violations WHERE id = ?", [id], request);
 
   const idx = inMemoryViolations.findIndex((v) => v.id === id);
   if (idx >= 0) inMemoryViolations.splice(idx, 1);
 
-  return res.affectedRows > 0;
+  return (res.rowCount || 0) > 0;
 }
