@@ -152,7 +152,13 @@ export async function fetchViolationsFromDb(request?: Request): Promise<Violatio
           qcK3: extra.qcK3,
           qcInstalasi: extra.qcInstalasi,
           kp: extra.kp,
-          idFat: extra.idFat,
+          idFat:
+            extra.idFat &&
+            !["ok", "nok", "tidak", "ya", "true", "false", "-", "—"].includes(
+              String(extra.idFat).trim().toLowerCase(),
+            )
+              ? extra.idFat
+              : undefined,
           dwGudang: extra.dwGudang,
           lokasiFatPelanggan: extra.lokasiFatPelanggan,
           petugasQc: extra.petugasQc,

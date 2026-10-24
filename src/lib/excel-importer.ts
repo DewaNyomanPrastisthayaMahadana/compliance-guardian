@@ -700,7 +700,16 @@ export function processAndImportData(
     const rawTanggalCek = normalizeDate((mapping.tanggalCek && row[mapping.tanggalCek]) || row["Tanggal Cek"]);
     const rawTanggalAktivasi = normalizeDate((mapping.tanggalAktivasi && row[mapping.tanggalAktivasi]) || row["Tanggal Aktivasi"]);
     const rawTanggalPermohonan = normalizeDate((mapping.tanggalPermohonan && row[mapping.tanggalPermohonan]) || row["Tanggal Permohonan"]);
-    const rawIdFat = mapping.idFat && row[mapping.idFat] ? String(row[mapping.idFat]).trim() : row["ID FAT"] ? String(row["ID FAT"]).trim() : undefined;
+    const candidateIdFat =
+      mapping.idFat && row[mapping.idFat]
+        ? String(row[mapping.idFat]).trim()
+        : row["ID FAT"]
+        ? String(row["ID FAT"]).trim()
+        : undefined;
+    const rawIdFat =
+      candidateIdFat && !["ok", "nok", "tidak", "ya", "true", "false", "-", "—"].includes(candidateIdFat.toLowerCase())
+        ? candidateIdFat
+        : undefined;
     const rawDwGudang = mapping.dwGudang && row[mapping.dwGudang] ? String(row[mapping.dwGudang]).trim() : row["DW gudang"] ? String(row["DW gudang"]).trim() : undefined;
     const rawLokasiFatPelanggan = mapping.lokasiFatPelanggan && row[mapping.lokasiFatPelanggan] ? String(row[mapping.lokasiFatPelanggan]).trim() : row["lokasi FAT-Pelanggan"] ? String(row["lokasi FAT-Pelanggan"]).trim() : undefined;
 

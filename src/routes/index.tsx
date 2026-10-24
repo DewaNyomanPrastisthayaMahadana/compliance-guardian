@@ -1958,15 +1958,20 @@ function Dashboard() {
                   />
                 )}
                 <PopupDetailRow label="Nama Mitra" value={selectedViolationDetail.mitra} />
-                <PopupDetailRow label="Petugas Mitra" value={selectedViolationDetail.petugas} />
+                <PopupDetailRow
+                  label="Petugas Mitra"
+                  value={formatPetugasValue(selectedViolationDetail.petugas)}
+                />
                 <PopupDetailRow
                   label="Petugas QC SBU"
                   value={
-                    selectedViolationDetail.petugasQc &&
-                    selectedViolationDetail.petugasQc !== selectedViolationDetail.sbu &&
-                    !sbuOptions.some((s) => s.code === selectedViolationDetail.petugasQc)
-                      ? selectedViolationDetail.petugasQc
-                      : "Belum dicatat"
+                    formatPetugasValue(
+                      selectedViolationDetail.petugasQc &&
+                      selectedViolationDetail.petugasQc !== selectedViolationDetail.sbu &&
+                      !sbuOptions.some((s) => s.code === selectedViolationDetail.petugasQc)
+                        ? selectedViolationDetail.petugasQc
+                        : "Belum dicatat"
+                    )
                   }
                 />
                 {selectedViolationDetail.petugasMonitoringPusat && (
@@ -1993,7 +1998,7 @@ function Dashboard() {
                     value={selectedViolationDetail.tanggalPermohonan}
                   />
                 )}
-                {selectedViolationDetail.idFat && (
+                {isValidIdFat(selectedViolationDetail.idFat) && (
                   <PopupDetailRow label="ID FAT" value={selectedViolationDetail.idFat} mono />
                 )}
                 {selectedViolationDetail.dwGudang && (
@@ -2028,22 +2033,71 @@ function Dashboard() {
               {selectedViolationDetail.checklistResults &&
                 Object.keys(selectedViolationDetail.checklistResults).length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase mb-2">
-                      Rincian Hasil Checklist QC (
-                      {Object.keys(selectedViolationDetail.checklistResults).length} Parameter)
-                    </p>
-                    <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-2.5 space-y-1.5 text-xs bg-muted/20">
-                      {Object.entries(selectedViolationDetail.checklistResults).map(
-                        ([item, res]) => {
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase flex items-center gap-1.5">
+                        <FileSpreadsheet className="size-3.5 text-primary" />
+                        Rincian Hasil Checklist QC
+                      </p>
+                      <span className="text-[11px] font-mono text-muted-foreground">
+                        {Object.keys(selectedViolationDetail.checklistResults).length} Parameter
+                      </span>
+                    </div>
+                    <div className="max-h-52 overflow-y-auto rounded-lg border border-border p-2 space-y-1 text-xs bg-muted/20">
+                      {Object.entries(selectedViolationDetail.checklistResults)
+                        .sort(([itemA, resA], [itemB, resB]) => {
+                          const isMatchA =
+                            itemA.toLowerCase().trim() ===
+                            selectedViolationDetail.jenis.toLowerCase().trim();
+                          const isMatchB =
+                            itemB.toLowerCase().trim() ===
+                            selectedViolationDetail.jenis.toLowerCase().trim();
+                          if (isMatchA && !isMatchB) return -1;
+                          if (!isMatchA && isMatchB) return 1;
+                          const isNokA =
+                            String(resA).toLowerCase() === "nok" ||
+                            String(resA).toLowerCase() === "tidak";
+                          const isNokB =
+                            String(resB).toLowerCase() === "nok" ||
+                            String(resB).toLowerCase() === "tidak";
+                          if (isNokA && !isNokB) return -1;
+                          if (!isNokA && isNokB) return 1;
+                          return itemA.localeCompare(itemB);
+                        })
+                        .map(([item, res]) => {
+                          const isCurrentViolationItem =
+                            item.toLowerCase().trim() ===
+                            selectedViolationDetail.jenis.toLowerCase().trim();
                           const isNok =
                             String(res).toLowerCase() === "nok" ||
                             String(res).toLowerCase() === "tidak";
                           return (
                             <div
                               key={item}
-                              className="flex items-center justify-between gap-2 py-1 border-b border-border/40 last:border-0"
+                              className={`flex items-center justify-between gap-2 py-1 px-2 rounded transition-colors ${
+                                isCurrentViolationItem
+                                  ? "bg-red-500/15 border border-red-500/30 font-medium"
+                                  : "hover:bg-muted/40 border-b border-border/30 last:border-0"
+                              }`}
                             >
-                              <span className="text-muted-foreground">{item}</span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {isCurrentViolationItem && (
+                                  <span className="size-1.5 rounded-full bg-red-500 shrink-0" />
+                                )}
+                                <span
+                                  className={`truncate ${
+                                    isCurrentViolationItem
+                                      ? "font-semibold text-foreground"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {item}
+                                </span>
+                                {isCurrentViolationItem && (
+                                  <span className="text-[10px] font-bold bg-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.2 rounded shrink-0">
+                                    Tiket Ini
+                                  </span>
+                                )}
+                              </div>
                               <span
                                 className={`font-mono font-semibold px-2 py-0.5 rounded text-[11px] shrink-0 ${
                                   isNok
@@ -2055,8 +2109,7 @@ function Dashboard() {
                               </span>
                             </div>
                           );
-                        },
-                      )}
+                        })}
                     </div>
                   </div>
                 )}
@@ -2569,6 +2622,36 @@ function Dashboard() {
   );
 }
 
+function isValidIdFat(val?: string | null): boolean {
+  if (!val) return false;
+  const s = String(val).trim().toLowerCase();
+  return !["ok", "nok", "tidak", "ya", "true", "false", "-", "—", "null", "undefined"].includes(s);
+}
+
+function formatPetugasValue(val?: string | null): React.ReactNode {
+  if (!val || val === "Belum dicatat") {
+    return <span className="text-muted-foreground italic font-normal">Belum dicatat</span>;
+  }
+  if (val.includes("/")) {
+    const parts = val.split("/");
+    const code = (parts[0] || "").trim();
+    const nameRaw = parts.slice(1).join("/").trim();
+    const cleanName = nameRaw.replace(/\./g, " ");
+
+    return (
+      <div className="flex flex-col items-end text-right">
+        <span className="font-semibold text-foreground text-xs leading-tight">{cleanName}</span>
+        {code && (
+          <span className="font-mono text-[10px] text-muted-foreground tracking-tight break-all mt-0.5">
+            {code}
+          </span>
+        )}
+      </div>
+    );
+  }
+  return <span className="font-semibold text-foreground text-xs">{val}</span>;
+}
+
 function PopupDetailRow({
   label,
   value,
@@ -2580,10 +2663,10 @@ function PopupDetailRow({
 }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-1.5 last:border-0 last:pb-0">
-      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
-      <span className={`text-right text-xs font-semibold text-foreground ${mono ? "font-mono" : ""}`}>
+      <span className="text-xs text-muted-foreground shrink-0 min-w-[125px] sm:min-w-[150px]">{label}</span>
+      <div className={`text-right text-xs font-semibold text-foreground break-all ${mono ? "font-mono" : ""}`}>
         {value}
-      </span>
+      </div>
     </div>
   );
 }

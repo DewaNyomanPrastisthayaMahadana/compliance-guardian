@@ -74,6 +74,82 @@ function matches(v: Violation, filter: (typeof filters)[number]) {
   return v.status !== "Closed";
 }
 
+// Helper memformat tanggal ke format konsisten (e.g. "22 Jan 2026")
+function formatDisplayDate(dateRaw?: string): string {
+  if (!dateRaw || dateRaw === "—" || dateRaw === "Hari ini") return "";
+  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  const s = String(dateRaw).trim();
+
+  // Sudah dalam format "22 Jan 2026"
+  const mWord = s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
+  if (mWord && mWord[1] && mWord[2] && mWord[3]) {
+    const d = parseInt(mWord[1], 10);
+    const m = mWord[2];
+    const y = mWord[3];
+    return `${d} ${m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()} ${y}`;
+  }
+
+  // Format ISO "YYYY-MM-DD" atau "YYYY-MM-DDTHH:mm:ss"
+  const mIso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (mIso && mIso[1] && mIso[2] && mIso[3]) {
+    const y = mIso[1];
+    const m = parseInt(mIso[2], 10);
+    const d = parseInt(mIso[3], 10);
+    if (m >= 1 && m <= 12) {
+      return `${d} ${months[m - 1]} ${y}`;
+    }
+  }
+
+  // Format "DD/MM/YYYY" atau "DD-MM-YYYY"
+  const mSlash = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+  if (mSlash && mSlash[1] && mSlash[2] && mSlash[3]) {
+    const d = parseInt(mSlash[1], 10);
+    const m = parseInt(mSlash[2], 10);
+    const y = mSlash[3];
+    if (m >= 1 && m <= 12) {
+      return `${d} ${months[m - 1]} ${y}`;
+    }
+  }
+
+  return s;
+}
+
+function getViolationDate(v: Violation): string {
+  return formatDisplayDate(v.tanggalCek || v.createdAt) || (v.tanggalCek || v.createdAt || "");
+}
+
+// Helper ekstrak bulan dari string tanggal
+function getMonthKey(dateRaw?: string): string {
+  const dateStr = (dateRaw || "").toLowerCase();
+  if (dateStr.includes("jan") || dateStr.includes("-01-") || dateStr.includes("/01/")) return "Jan";
+  if (dateStr.includes("feb") || dateStr.includes("-02-") || dateStr.includes("/02/")) return "Feb";
+  if (dateStr.includes("mar") || dateStr.includes("-03-") || dateStr.includes("/03/")) return "Mar";
+  if (dateStr.includes("apr") || dateStr.includes("-04-") || dateStr.includes("/04/")) return "Apr";
+  if (dateStr.includes("mei") || dateStr.includes("may") || dateStr.includes("-05-") || dateStr.includes("/05/")) return "Mei";
+  if (dateStr.includes("jun") || dateStr.includes("-06-") || dateStr.includes("/06/")) return "Jun";
+  if (dateStr.includes("jul") || dateStr.includes("-07-") || dateStr.includes("/07/")) return "Jul";
+  if (dateStr.includes("agu") || dateStr.includes("aug") || dateStr.includes("-08-") || dateStr.includes("/08/")) return "Agu";
+  if (dateStr.includes("sep") || dateStr.includes("-09-") || dateStr.includes("/09/")) return "Sep";
+  if (dateStr.includes("okt") || dateStr.includes("oct") || dateStr.includes("-10-") || dateStr.includes("/10/")) return "Okt";
+  if (dateStr.includes("nov") || dateStr.includes("-11-") || dateStr.includes("/11/")) return "Nov";
+  if (dateStr.includes("des") || dateStr.includes("dec") || dateStr.includes("-12-") || dateStr.includes("/12/")) return "Des";
+  return "";
+}
+
+// Helper normalisasi SBU dari data tiket
+function getSbuKey(v: Violation): string {
+  const raw = (v.sbu || v.lokasi || "").trim().toUpperCase();
+  for (const key of Object.keys(SBU_REGIONAL_CONFIG)) {
+    if (raw.includes(key) || raw.startsWith(key)) return key;
+    const conf = SBU_REGIONAL_CONFIG[key];
+    if (conf?.label && raw.includes(conf.label.toUpperCase())) return key;
+    if (conf?.short && raw.includes(conf.short.toUpperCase())) return key;
+  }
+  const match = raw.match(/^(\d{2}[A-Z]+)/);
+  if (match && match[1]) return match[1];
+  return raw || "LAINNYA";
+}
+
 function PelanggaranPage() {
   const router = useRouter();
   const { violations: loadedViolations, canDelete } = Route.useLoaderData();
@@ -106,6 +182,7 @@ function PelanggaranPage() {
       ...custom,
       ...base.filter((v) => !custom.some((c) => c.id === v.id)),
     ];
+    void refreshTrigger;
     return (isOverridden && custom.length > 0 ? custom : combined).filter(
       (v) => !deletedIdsSet.has(v.id) && isRealViolation(v),
     );
@@ -134,82 +211,6 @@ function PelanggaranPage() {
       }
     });
   }, []);
-
-  // Helper memformat tanggal ke format konsisten (e.g. "22 Jan 2026")
-  const formatDisplayDate = (dateRaw?: string): string => {
-    if (!dateRaw || dateRaw === "—" || dateRaw === "Hari ini") return "";
-    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-    const s = String(dateRaw).trim();
-
-    // Sudah dalam format "22 Jan 2026"
-    const mWord = s.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
-    if (mWord && mWord[1] && mWord[2] && mWord[3]) {
-      const d = parseInt(mWord[1], 10);
-      const m = mWord[2];
-      const y = mWord[3];
-      return `${d} ${m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()} ${y}`;
-    }
-
-    // Format ISO "YYYY-MM-DD" atau "YYYY-MM-DDTHH:mm:ss"
-    const mIso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (mIso && mIso[1] && mIso[2] && mIso[3]) {
-      const y = mIso[1];
-      const m = parseInt(mIso[2], 10);
-      const d = parseInt(mIso[3], 10);
-      if (m >= 1 && m <= 12) {
-        return `${d} ${months[m - 1]} ${y}`;
-      }
-    }
-
-    // Format "DD/MM/YYYY" atau "DD-MM-YYYY"
-    const mSlash = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
-    if (mSlash && mSlash[1] && mSlash[2] && mSlash[3]) {
-      const d = parseInt(mSlash[1], 10);
-      const m = parseInt(mSlash[2], 10);
-      const y = mSlash[3];
-      if (m >= 1 && m <= 12) {
-        return `${d} ${months[m - 1]} ${y}`;
-      }
-    }
-
-    return s;
-  };
-
-  const getViolationDate = (v: Violation): string => {
-    return formatDisplayDate(v.tanggalCek || v.createdAt) || (v.tanggalCek || v.createdAt || "");
-  };
-
-  // Helper ekstrak bulan dari string tanggal
-  const getMonthKey = (dateRaw?: string): string => {
-    const dateStr = (dateRaw || "").toLowerCase();
-    if (dateStr.includes("jan") || dateStr.includes("-01-") || dateStr.includes("/01/")) return "Jan";
-    if (dateStr.includes("feb") || dateStr.includes("-02-") || dateStr.includes("/02/")) return "Feb";
-    if (dateStr.includes("mar") || dateStr.includes("-03-") || dateStr.includes("/03/")) return "Mar";
-    if (dateStr.includes("apr") || dateStr.includes("-04-") || dateStr.includes("/04/")) return "Apr";
-    if (dateStr.includes("mei") || dateStr.includes("may") || dateStr.includes("-05-") || dateStr.includes("/05/")) return "Mei";
-    if (dateStr.includes("jun") || dateStr.includes("-06-") || dateStr.includes("/06/")) return "Jun";
-    if (dateStr.includes("jul") || dateStr.includes("-07-") || dateStr.includes("/07/")) return "Jul";
-    if (dateStr.includes("agu") || dateStr.includes("aug") || dateStr.includes("-08-") || dateStr.includes("/08/")) return "Agu";
-    if (dateStr.includes("sep") || dateStr.includes("-09-") || dateStr.includes("/09/")) return "Sep";
-    if (dateStr.includes("okt") || dateStr.includes("oct") || dateStr.includes("-10-") || dateStr.includes("/10/")) return "Okt";
-    if (dateStr.includes("nov") || dateStr.includes("-11-") || dateStr.includes("/11/")) return "Nov";
-    if (dateStr.includes("des") || dateStr.includes("dec") || dateStr.includes("-12-") || dateStr.includes("/12/")) return "Des";
-    return "";
-  };
-
-  // Helper normalisasi SBU dari data tiket
-  const getSbuKey = (v: Violation): string => {
-    const raw = (v.sbu || v.lokasi || "").trim().toUpperCase();
-    for (const key of Object.keys(SBU_REGIONAL_CONFIG)) {
-      if (raw.includes(key) || raw.startsWith(key)) return key;
-      const conf = SBU_REGIONAL_CONFIG[key];
-      if (conf?.label && raw.includes(conf.label.toUpperCase())) return key;
-      if (conf?.short && raw.includes(conf.short.toUpperCase())) return key;
-    }
-    const match = raw.match(/^(\d{2}[A-Z]+)/);
-    if (match && match[1]) return match[1];
-    return raw || "LAINNYA";
-  };
 
   // Kumpulkan daftar SBU yang tersedia beserta jumlah tiketnya
   const availableSbuList = useMemo(() => {
@@ -742,79 +743,129 @@ function PelanggaranPage() {
                 </CardTitle>
                 <CardDescription>{selected.jenis}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <Detail label="ID PA ICRM" value={selected.idPa ?? "Belum dicatat"} />
-              <Detail label="SBU Operasional" value={selected.sbu ?? selected.lokasi} />
-              <Detail label="Nama Mitra" value={selected.mitra} />
-              <Detail label="Petugas Mitra" value={selected.petugas} />
-              <Detail
-                label="Petugas QC SBU"
-                value={
-                  selected.petugasQc &&
-                  selected.petugasQc !== selected.sbu &&
-                  !sbuOptions.some((s) => s.code === selected.petugasQc)
-                    ? selected.petugasQc
-                    : "Belum dicatat"
-                }
-              />
-              <Detail
-                label="Petugas Monitoring Pusat"
-                value={selected.petugasMonitoringPusat || "Belum dicatat"}
-              />
-              {selected.tanggalCek && (
+              <CardContent className="space-y-2.5 text-sm">
+                <Detail label="ID PA ICRM" value={selected.idPa ?? "Belum dicatat"} mono />
+                <Detail label="SBU Operasional" value={selected.sbu ?? selected.lokasi} />
+                <Detail label="Nama Mitra" value={selected.mitra} />
+                <Detail label="Petugas Mitra" value={formatPetugasValue(selected.petugas)} />
                 <Detail
-                  label="Tanggal Cek / Inspeksi"
-                  value={formatDisplayDate(selected.tanggalCek) || selected.tanggalCek}
+                  label="Petugas QC SBU"
+                  value={
+                    formatPetugasValue(
+                      selected.petugasQc &&
+                      selected.petugasQc !== selected.sbu &&
+                      !sbuOptions.some((s) => s.code === selected.petugasQc)
+                        ? selected.petugasQc
+                        : "Belum dicatat"
+                    )
+                  }
                 />
-              )}
-              {selected.tanggalAktivasi && (
-                <Detail label="Tanggal Aktivasi" value={selected.tanggalAktivasi} />
-              )}
-              {selected.tanggalPermohonan && (
-                <Detail label="Tanggal Permohonan" value={selected.tanggalPermohonan} />
-              )}
-              {selected.kp && <Detail label="Kantor Perwakilan (KP)" value={selected.kp} />}
-              {selected.idFat && <Detail label="ID FAT" value={selected.idFat} />}
-              {selected.dwGudang && <Detail label="DW Gudang" value={selected.dwGudang} />}
-              {selected.lokasiFatPelanggan && (
-                <Detail label="Lokasi FAT - Pelanggan" value={selected.lokasiFatPelanggan} />
-              )}
-              <Detail
-                label="Kategori / poin sanksi"
-                value={`${selected.severity} · ${selected.poin} poin`}
-              />
-              <Detail label="Deadline klarifikasi" value={selected.deadline} />
-              <div>
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Catatan
-                </p>
-                <p className="mt-1">{selected.catatan}</p>
-              </div>
-
-              {selected.checklistResults && Object.keys(selected.checklistResults).length > 0 && (
-                <div className="pt-2">
-                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase mb-2">
-                    Hasil Checklist QC
+                <Detail
+                  label="Petugas Monitoring Pusat"
+                  value={selected.petugasMonitoringPusat || "Belum dicatat"}
+                />
+                {selected.tanggalCek && (
+                  <Detail
+                    label="Tanggal Cek / Inspeksi"
+                    value={formatDisplayDate(selected.tanggalCek) || selected.tanggalCek}
+                  />
+                )}
+                {selected.tanggalAktivasi && (
+                  <Detail label="Tanggal Aktivasi" value={selected.tanggalAktivasi} />
+                )}
+                {selected.tanggalPermohonan && (
+                  <Detail label="Tanggal Permohonan" value={selected.tanggalPermohonan} />
+                )}
+                {selected.kp && <Detail label="Kantor Perwakilan (KP)" value={selected.kp} />}
+                {isValidIdFat(selected.idFat) && <Detail label="ID FAT" value={selected.idFat} mono />}
+                {selected.dwGudang && <Detail label="DW Gudang" value={selected.dwGudang} />}
+                {selected.lokasiFatPelanggan && (
+                  <Detail label="Lokasi FAT - Pelanggan" value={selected.lokasiFatPelanggan} />
+                )}
+                <Detail
+                  label="Kategori / poin sanksi"
+                  value={`${selected.severity} · ${selected.poin} poin`}
+                />
+                <Detail label="Deadline klarifikasi" value={selected.deadline} />
+                <div className="pt-2 border-t border-border/40">
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Catatan
                   </p>
-                  <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-2 space-y-1.5 text-xs bg-muted/20">
-                    {Object.entries(selected.checklistResults).map(([item, res]) => {
-                      const isNok = String(res).toLowerCase() === "nok" || String(res).toLowerCase() === "tidak";
-                      return (
-                        <div key={item} className="flex items-center justify-between py-0.5 border-b border-border/40 last:border-0">
-                          <span className="text-muted-foreground">{item}</span>
-                          <span className={`font-mono font-semibold px-1.5 py-0.5 rounded text-[11px] ${
-                            isNok
-                              ? "bg-red-500/10 text-red-600 dark:text-red-400"
-                              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          }`}>
-                            {res || "—"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <p className="mt-1 text-xs text-foreground/90 leading-relaxed">{selected.catatan}</p>
                 </div>
-              )}
+
+                {selected.checklistResults && Object.keys(selected.checklistResults).length > 0 && (
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase flex items-center gap-1.5">
+                        <FileSpreadsheet className="size-3.5 text-primary" />
+                        Hasil Checklist QC
+                      </p>
+                      <span className="text-[11px] font-mono text-muted-foreground">
+                        {Object.keys(selected.checklistResults).length} Parameter
+                      </span>
+                    </div>
+                    <div className="max-h-52 overflow-y-auto rounded-lg border border-border p-1.5 space-y-1 text-xs bg-muted/20">
+                      {Object.entries(selected.checklistResults)
+                        .sort(([itemA, resA], [itemB, resB]) => {
+                          const isMatchA = itemA.toLowerCase().trim() === selected.jenis.toLowerCase().trim();
+                          const isMatchB = itemB.toLowerCase().trim() === selected.jenis.toLowerCase().trim();
+                          if (isMatchA && !isMatchB) return -1;
+                          if (!isMatchA && isMatchB) return 1;
+                          const isNokA = String(resA).toLowerCase() === "nok" || String(resA).toLowerCase() === "tidak";
+                          const isNokB = String(resB).toLowerCase() === "nok" || String(resB).toLowerCase() === "tidak";
+                          if (isNokA && !isNokB) return -1;
+                          if (!isNokA && isNokB) return 1;
+                          return itemA.localeCompare(itemB);
+                        })
+                        .map(([item, res]) => {
+                          const isCurrentViolationItem =
+                            item.toLowerCase().trim() === selected.jenis.toLowerCase().trim();
+                          const isNok =
+                            String(res).toLowerCase() === "nok" || String(res).toLowerCase() === "tidak";
+                          return (
+                            <div
+                              key={item}
+                              className={`flex items-center justify-between gap-2 py-1 px-2 rounded transition-colors ${
+                                isCurrentViolationItem
+                                  ? "bg-red-500/15 border border-red-500/30 font-medium"
+                                  : "hover:bg-muted/40 border-b border-border/30 last:border-0"
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {isCurrentViolationItem && (
+                                  <span className="size-1.5 rounded-full bg-red-500 shrink-0" />
+                                )}
+                                <span
+                                  className={`truncate ${
+                                    isCurrentViolationItem
+                                      ? "font-semibold text-foreground"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {item}
+                                </span>
+                                {isCurrentViolationItem && (
+                                  <span className="text-[10px] font-bold bg-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.2 rounded shrink-0">
+                                    Tiket Ini
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className={`font-mono font-semibold px-1.5 py-0.5 rounded text-[11px] shrink-0 ${
+                                  isNok
+                                    ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                }`}
+                              >
+                                {res || "—"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
               <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-3">
                 {[1, 2, 3].map((i) => {
                   const photo = (selected.bukti?.length ? selected.bukti : storedEvidence)[i - 1];
@@ -902,11 +953,57 @@ function PelanggaranPage() {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function isValidIdFat(val?: string | null): boolean {
+  if (!val) return false;
+  const s = String(val).trim().toLowerCase();
+  return !["ok", "nok", "tidak", "ya", "true", "false", "-", "—", "null", "undefined"].includes(s);
+}
+
+function formatPetugasValue(val?: string | null): React.ReactNode {
+  if (!val || val === "Belum dicatat") {
+    return <span className="text-muted-foreground italic font-normal">Belum dicatat</span>;
+  }
+  if (val.includes("/")) {
+    const parts = val.split("/");
+    const code = (parts[0] || "").trim();
+    const nameRaw = parts.slice(1).join("/").trim();
+    const cleanName = nameRaw.replace(/\./g, " ");
+
+    return (
+      <div className="flex flex-col items-end text-right">
+        <span className="font-semibold text-foreground text-xs leading-tight">{cleanName}</span>
+        {code && (
+          <span className="font-mono text-[10px] text-muted-foreground tracking-tight break-all mt-0.5">
+            {code}
+          </span>
+        )}
+      </div>
+    );
+  }
+  return <span className="font-semibold text-foreground text-xs">{val}</span>;
+}
+
+function Detail({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
   return (
-    <div className="flex justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value}</span>
+    <div className="flex items-start justify-between gap-3 border-b border-border/30 pb-2 last:border-0 last:pb-0">
+      <span className="text-xs text-muted-foreground shrink-0 min-w-[125px] sm:min-w-[150px]">
+        {label}
+      </span>
+      <div
+        className={`text-right text-xs font-medium text-foreground break-all ${
+          mono ? "font-mono" : ""
+        }`}
+      >
+        {value}
+      </div>
     </div>
   );
 }
