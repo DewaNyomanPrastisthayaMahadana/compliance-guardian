@@ -30,6 +30,7 @@ export const user = pgTable(
     appRole: varchar("appRole", { length: 50 }).notNull().default("mitra"),
     organization: varchar("organization", { length: 255 }),
     sbu: varchar("sbu", { length: 100 }),
+    status: varchar("status", { length: 20 }).notNull().default("aktif"),
   },
   (table) => [uniqueIndex("user_email_unique").on(table.email)],
 );

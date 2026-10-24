@@ -67,10 +67,19 @@ async function ensureSchemaUpdated(p: pg.Pool) {
   schemaChecked = true;
   try {
     await p.query('ALTER TABLE "user" ALTER COLUMN "appRole" SET DEFAULT \'mitra\'');
-  } catch {}
+  } catch {
+    /* ignore */
+  }
   try {
     await p.query('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "sbu" VARCHAR(100)');
-  } catch {}
+  } catch {
+    /* ignore */
+  }
+  try {
+    await p.query('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "status" VARCHAR(20) NOT NULL DEFAULT \'aktif\'');
+  } catch {
+    /* ignore */
+  }
 }
 
 export function getAuthDb(request?: Request): any {
@@ -159,10 +168,12 @@ export function createAuth(request: Request) {
               message: `Akun Google (${email}) belum didaftarkan oleh Super Admin. Silakan hubungi Super Admin untuk pendaftaran akun terlebih dahulu.`,
             });
           }
-          if (userRecord.banned) {
+          if (userRecord.banned || userRecord.status === "resign") {
             throw APIError.from("FORBIDDEN", {
               code: "FORBIDDEN",
-              message: `Akun ini telah dinonaktifkan: ${userRecord.banReason || "Akses ditolak"}`,
+              message: userRecord.banned
+                ? `Akun ini telah dinonaktifkan: ${userRecord.banReason || "Akses ditolak"}`
+                : "Akun ini telah berstatus Resign dan tidak memiliki akses ke sistem.",
             });
           }
           const session = await ctx.context.internalAdapter.createSession(userRecord.id, false);
@@ -202,6 +213,7 @@ export function createAuth(request: Request) {
         appRole: { type: "string", required: true, defaultValue: "mitra", input: false },
         organization: { type: "string", required: false, input: false },
         sbu: { type: "string", required: false, input: false },
+        status: { type: "string", required: false, defaultValue: "aktif", input: false },
       },
     },
     databaseHooks: {

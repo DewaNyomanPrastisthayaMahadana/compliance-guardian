@@ -76,6 +76,32 @@ function getRoleTone(role?: string | null): "info" | "success" | "warning" | "ne
   }
 }
 
+function getAccountStatusTone(status?: string | null): "success" | "warning" | "critical" | "neutral" {
+  switch (status) {
+    case "aktif":
+      return "success";
+    case "cuti":
+      return "warning";
+    case "resign":
+      return "critical";
+    default:
+      return "neutral";
+  }
+}
+
+function getAccountStatusLabel(status?: string | null): string {
+  switch (status) {
+    case "aktif":
+      return "Aktif";
+    case "cuti":
+      return "Cuti";
+    case "resign":
+      return "Resign";
+    default:
+      return status || "Aktif";
+  }
+}
+
 function getRoleLabel(role?: string | null): string {
   if (!role) return "—";
   return roleOptions.find((r) => r.value === role)?.label || role;
@@ -84,11 +110,13 @@ function getRoleLabel(role?: string | null): string {
 function DataAkunPage() {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editRole, setEditRole] = useState<"petugas-sbu" | "mitra" | "petugas-mitra">("mitra");
+  const [editStatus, setEditStatus] = useState<"aktif" | "cuti" | "resign">("aktif");
   const [editSbu, setEditSbu] = useState("");
   const [editOrganization, setEditOrganization] = useState("");
   const [userPendingDelete, setUserPendingDelete] = useState<(typeof users)[number] | null>(null);
@@ -113,20 +141,25 @@ function DataAkunPage() {
       petugasSbu: users.filter((u) => u.appRole === "petugas-sbu").length,
       mitra: users.filter((u) => u.appRole === "mitra").length,
       petugasMitra: users.filter((u) => u.appRole === "petugas-mitra").length,
+      aktif: users.filter((u) => (u.status || "aktif") === "aktif").length,
+      cuti: users.filter((u) => u.status === "cuti").length,
+      resign: users.filter((u) => u.status === "resign").length,
     };
   }, [users]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const matchesRole = roleFilter === "ALL" || user.appRole === roleFilter;
+      const userStatus = user.status || "aktif";
+      const matchesStatus = statusFilter === "ALL" || userStatus === statusFilter;
       const matchesQuery =
         !query.trim() ||
-        `${user.name} ${user.email} ${user.appRole} ${user.sbu ?? ""} ${user.organization ?? ""}`
+        `${user.name} ${user.email} ${user.appRole} ${userStatus} ${user.sbu ?? ""} ${user.organization ?? ""}`
           .toLowerCase()
           .includes(query.toLowerCase());
-      return matchesRole && matchesQuery;
+      return matchesRole && matchesStatus && matchesQuery;
     });
-  }, [users, roleFilter, query]);
+  }, [users, roleFilter, statusFilter, query]);
 
   const startEditingUser = (user: (typeof users)[number]) => {
     if (user.appRole === "super-admin") return;
@@ -134,6 +167,7 @@ function DataAkunPage() {
     setEditRole(user.appRole as "petugas-sbu" | "mitra" | "petugas-mitra");
     setEditSbu(user.sbu ?? "");
     setEditOrganization(user.organization ?? "");
+    setEditStatus((user.status as any) || "aktif");
   };
 
   const handleUpdateUser = async (userId: string) => {
@@ -150,11 +184,12 @@ function DataAkunPage() {
           appRole: editRole,
           sbu: editSbu,
           organization: editOrganization,
+          status: editStatus,
         },
       });
       await refreshUsers();
       setEditingUserId(null);
-      toast.success("Role & data akun berhasil diperbarui!");
+      toast.success("Role & status akun berhasil diperbarui!");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal menyimpan perubahan.");
     } finally {
@@ -195,73 +230,118 @@ function DataAkunPage() {
         />
 
         {/* Filter Bar & Statistik Ringkas */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant={roleFilter === "ALL" ? "default" : "outline"}
-              onClick={() => setRoleFilter("ALL")}
-              className="h-8 text-xs font-semibold gap-1.5"
-            >
-              <span>Semua Akun</span>
-              <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
-                {counts.all}
-              </span>
-            </Button>
-            <Button
-              size="sm"
-              variant={roleFilter === "super-admin" ? "default" : "outline"}
-              onClick={() => setRoleFilter("super-admin")}
-              className="h-8 text-xs font-semibold gap-1.5"
-            >
-              <span>Super Admin</span>
-              <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
-                {counts.superAdmin}
-              </span>
-            </Button>
-            <Button
-              size="sm"
-              variant={roleFilter === "petugas-sbu" ? "default" : "outline"}
-              onClick={() => setRoleFilter("petugas-sbu")}
-              className="h-8 text-xs font-semibold gap-1.5"
-            >
-              <span>Petugas SBU</span>
-              <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
-                {counts.petugasSbu}
-              </span>
-            </Button>
-            <Button
-              size="sm"
-              variant={roleFilter === "mitra" ? "default" : "outline"}
-              onClick={() => setRoleFilter("mitra")}
-              className="h-8 text-xs font-semibold gap-1.5"
-            >
-              <span>Mitra</span>
-              <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
-                {counts.mitra}
-              </span>
-            </Button>
-            <Button
-              size="sm"
-              variant={roleFilter === "petugas-mitra" ? "default" : "outline"}
-              onClick={() => setRoleFilter("petugas-mitra")}
-              className="h-8 text-xs font-semibold gap-1.5"
-            >
-              <span>Petugas Mitra</span>
-              <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
-                {counts.petugasMitra}
-              </span>
-            </Button>
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant={roleFilter === "ALL" ? "default" : "outline"}
+                onClick={() => setRoleFilter("ALL")}
+                className="h-8 text-xs font-semibold gap-1.5"
+              >
+                <span>Semua Role</span>
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
+                  {counts.all}
+                </span>
+              </Button>
+              <Button
+                size="sm"
+                variant={roleFilter === "super-admin" ? "default" : "outline"}
+                onClick={() => setRoleFilter("super-admin")}
+                className="h-8 text-xs font-semibold gap-1.5"
+              >
+                <span>Super Admin</span>
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
+                  {counts.superAdmin}
+                </span>
+              </Button>
+              <Button
+                size="sm"
+                variant={roleFilter === "petugas-sbu" ? "default" : "outline"}
+                onClick={() => setRoleFilter("petugas-sbu")}
+                className="h-8 text-xs font-semibold gap-1.5"
+              >
+                <span>Petugas SBU</span>
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
+                  {counts.petugasSbu}
+                </span>
+              </Button>
+              <Button
+                size="sm"
+                variant={roleFilter === "mitra" ? "default" : "outline"}
+                onClick={() => setRoleFilter("mitra")}
+                className="h-8 text-xs font-semibold gap-1.5"
+              >
+                <span>Mitra</span>
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
+                  {counts.mitra}
+                </span>
+              </Button>
+              <Button
+                size="sm"
+                variant={roleFilter === "petugas-mitra" ? "default" : "outline"}
+                onClick={() => setRoleFilter("petugas-mitra")}
+                className="h-8 text-xs font-semibold gap-1.5"
+              >
+                <span>Petugas Mitra</span>
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px]">
+                  {counts.petugasMitra}
+                </span>
+              </Button>
+            </div>
+
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Cari nama, email, role, status, mitra..."
+                className="h-8.5 pl-9 text-xs"
+              />
+            </div>
           </div>
 
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari nama, email, role, mitra..."
-              className="h-8.5 pl-9 text-xs"
-            />
+          {/* Sub-Filter: Status Akun */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40 text-xs">
+            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+              <Filter className="size-3" />
+              Status Akun:
+            </span>
+            <Button
+              size="sm"
+              variant={statusFilter === "ALL" ? "secondary" : "ghost"}
+              onClick={() => setStatusFilter("ALL")}
+              className="h-7 text-[11px] px-2.5 font-medium"
+            >
+              Semua ({counts.all})
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "aktif" ? "secondary" : "ghost"}
+              onClick={() => setStatusFilter("aktif")}
+              className="h-7 text-[11px] px-2.5 font-medium text-emerald-600 hover:text-emerald-700"
+            >
+              <span className="size-1.5 rounded-full bg-emerald-500 mr-1.5" />
+              Aktif ({counts.aktif})
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "cuti" ? "secondary" : "ghost"}
+              onClick={() => setStatusFilter("cuti")}
+              className="h-7 text-[11px] px-2.5 font-medium text-amber-600 hover:text-amber-700"
+            >
+              <span className="size-1.5 rounded-full bg-amber-500 mr-1.5" />
+              Cuti ({counts.cuti})
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "resign" ? "secondary" : "ghost"}
+              onClick={() => setStatusFilter("resign")}
+              className="h-7 text-[11px] px-2.5 font-medium text-rose-600 hover:text-rose-700"
+            >
+              <span className="size-1.5 rounded-full bg-rose-500 mr-1.5" />
+              Resign ({counts.resign})
+            </Button>
           </div>
         </div>
 
@@ -314,6 +394,7 @@ function DataAkunPage() {
                       <TableHead className="font-bold text-xs">Nama &amp; Pengguna</TableHead>
                       <TableHead className="font-bold text-xs">Email Kerja</TableHead>
                       <TableHead className="font-bold text-xs">Role</TableHead>
+                      <TableHead className="font-bold text-xs">Status</TableHead>
                       <TableHead className="font-bold text-xs">Wilayah SBU</TableHead>
                       <TableHead className="font-bold text-xs">Organisasi / Mitra</TableHead>
                       <TableHead className="w-28 text-right font-bold text-xs">Aksi</TableHead>
@@ -369,6 +450,43 @@ function DataAkunPage() {
                             ) : (
                               <StatusPill tone={getRoleTone(user.appRole)}>
                                 {getRoleLabel(user.appRole)}
+                              </StatusPill>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            {isEditing ? (
+                              <Select
+                                value={editStatus}
+                                onValueChange={(val) => setEditStatus(val as typeof editStatus)}
+                              >
+                                <SelectTrigger className="h-7 text-xs w-[110px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="aktif" className="text-xs">
+                                    <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                                      <span className="size-1.5 rounded-full bg-emerald-500" />
+                                      Aktif
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="cuti" className="text-xs">
+                                    <span className="flex items-center gap-1.5 text-amber-600 font-medium">
+                                      <span className="size-1.5 rounded-full bg-amber-500" />
+                                      Cuti
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="resign" className="text-xs">
+                                    <span className="flex items-center gap-1.5 text-rose-600 font-medium">
+                                      <span className="size-1.5 rounded-full bg-rose-500" />
+                                      Resign
+                                    </span>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <StatusPill tone={getAccountStatusTone(user.status)}>
+                                {getAccountStatusLabel(user.status)}
                               </StatusPill>
                             )}
                           </TableCell>

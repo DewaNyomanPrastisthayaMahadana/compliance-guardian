@@ -33,8 +33,9 @@ function BuatAkunPage() {
   const [appRole, setAppRole] = useState<AppRole>("mitra");
   const [sbu, setSbu] = useState<string>("");
   const [organization, setOrganization] = useState("");
+  const [status, setStatus] = useState<"aktif" | "cuti" | "resign">("aktif");
   const [submitting, setSubmitting] = useState(false);
-  const [createdUser, setCreatedUser] = useState<{ name: string; email: string; role: string; sbu?: string | undefined } | null>(null);
+  const [createdUser, setCreatedUser] = useState<{ name: string; email: string; role: string; sbu?: string | undefined; status?: string | undefined } | null>(null);
 
   const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -70,6 +71,7 @@ function BuatAkunPage() {
           appRole,
           sbu: sbu === "SEMUA" ? "" : sbu,
           organization: finalOrg,
+          status,
         },
       });
 
@@ -78,6 +80,7 @@ function BuatAkunPage() {
         email: email.trim().toLowerCase(),
         role: roleOptions.find((r) => r.value === appRole)?.label || appRole,
         sbu: sbuObj ? `${sbuObj.code} - ${sbuObj.label}` : undefined,
+        status: status === "aktif" ? "Aktif" : status === "cuti" ? "Cuti" : "Resign",
       });
 
       toast.success("Akun berhasil dibuat dan tersimpan ke database!");
@@ -89,6 +92,7 @@ function BuatAkunPage() {
       setSbu("");
       setOrganization("");
       setAppRole("mitra");
+      setStatus("aktif");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Gagal membuat akun.";
       toast.error(msg);
@@ -353,6 +357,42 @@ function BuatAkunPage() {
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  {/* Status Akun */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="create-status" className="text-xs font-semibold flex items-center gap-1.5">
+                      <ShieldCheck className="size-3.5 text-primary" />
+                      Status Akun <span className="text-destructive">*</span>
+                    </Label>
+                    <Select
+                      value={status}
+                      onValueChange={(val) => setStatus(val as typeof status)}
+                    >
+                      <SelectTrigger id="create-status" className="h-10 text-sm">
+                        <SelectValue placeholder="Pilih Status Akun" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aktif" className="text-sm">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-emerald-500" />
+                            <span>Aktif — Akun beroperasi aktif dengan akses penuh</span>
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="cuti" className="text-sm">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-amber-500" />
+                            <span>Cuti — Akun sedang masa cuti / penugasan jeda</span>
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="resign" className="text-sm">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-rose-500" />
+                            <span>Resign — Akun telah berhenti & akses dinonaktifkan</span>
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

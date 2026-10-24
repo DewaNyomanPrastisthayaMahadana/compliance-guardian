@@ -92,9 +92,9 @@ type AuthUser = Awaited<ReturnType<typeof getCurrentAuthUser>>;
 function getClarificationInfo(v: Violation) {
   let note = v.clarificationNote || "";
   let submittedBy = v.clarificationSubmittedBy || "";
-  let submittedAt = v.clarificationSubmittedAt || "";
+  const submittedAt = v.clarificationSubmittedAt || "";
   let role = v.clarificationRole || "";
-  let org = v.clarificationOrganization || "";
+  const org = v.clarificationOrganization || "";
 
   if (!note && v.catatan && v.catatan.includes("[Klarifikasi diajukan")) {
     const match = v.catatan.match(/\[Klarifikasi diajukan oleh ([^\]]+)\]:\s*([\s\S]+)/);
@@ -187,8 +187,9 @@ function LaporanKlarifikasiPage() {
     return () => window.removeEventListener("iconguard-data-hydrated", onHydrated);
   }, []);
 
-  const deleted = new Set(getDeletedViolationIds());
   const allList = useMemo(() => {
+    const deleted = new Set(getDeletedViolationIds());
+    void refreshTrigger;
     const isOverridden = typeof window !== "undefined" && localStorage.getItem("iconguard_override_all") === "true";
     const custom = getCustomViolationsFromStorage();
     if (isOverridden && custom.length > 0) {
@@ -210,6 +211,7 @@ function LaporanKlarifikasiPage() {
       ...custom,
       ...base.filter((v) => !custom.some((c) => c.id === v.id)),
     ];
+    void refreshTrigger;
     return (isOverridden && custom.length > 0 ? custom : combined).filter(
       (v) => !deleted.has(v.id) && isRealViolation(v),
     );

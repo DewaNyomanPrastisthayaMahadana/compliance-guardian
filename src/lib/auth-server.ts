@@ -84,10 +84,15 @@ export const getAuthStatus = createServerFn({ method: "GET" }).handler(async () 
   };
 });
 
+export type AccountStatus = "aktif" | "cuti" | "resign";
+
 export const getCurrentAuthUser = createServerFn({ method: "GET" }).handler(async () => {
   const { request } = getRequestAuth();
   const signedInUser = await getSignedInUser(request);
   if (!signedInUser || !appRoles.includes(signedInUser.appRole as AppRole)) return null;
+
+  const userStatus = (((signedInUser as any).status || "aktif") as AccountStatus);
+  if (userStatus === "resign") return null;
 
   return {
     id: signedInUser.id,
@@ -96,6 +101,7 @@ export const getCurrentAuthUser = createServerFn({ method: "GET" }).handler(asyn
     appRole: signedInUser.appRole as AppRole,
     organization: signedInUser.organization ?? "",
     sbu: (signedInUser as any).sbu ?? "",
+    status: userStatus,
     bootId: SERVER_BOOT_ID,
   };
 });
@@ -114,6 +120,7 @@ export const loginWithGoogleVerified = createServerFn({ method: "POST" })
         email: user.email,
         appRole: user.appRole,
         organization: user.organization,
+        status: user.status,
         banned: user.banned,
         banReason: user.banReason,
       })
@@ -127,8 +134,12 @@ export const loginWithGoogleVerified = createServerFn({ method: "POST" })
       );
     }
 
-    if (existingUser.banned) {
-      throw new Error(`Akun ini dinonaktifkan: ${existingUser.banReason || "Akses dicabut"}`);
+    if (existingUser.banned || existingUser.status === "resign") {
+      throw new Error(
+        existingUser.banned
+          ? `Akun Anda telah dinonaktifkan: ${existingUser.banReason || "Akses ditolak"}.`
+          : "Akun ini telah berstatus Resign dan akses login dinonaktifkan."
+      );
     }
 
     await (auth.api as any).signInGoogleVerified({
@@ -270,8 +281,9 @@ export const checkRouteAccess = createServerFn({ method: "GET" })
     const { request } = getRequestAuth();
     const signedInUser = await getSignedInUser(request);
     const role = signedInUser?.appRole as AppRole | undefined;
+    const userStatus = (((signedInUser as any)?.status || "aktif") as AccountStatus);
 
-    if (!signedInUser || !role || !appRoles.includes(role)) {
+    if (!signedInUser || !role || !appRoles.includes(role) || userStatus === "resign") {
       return {
         authenticated: false as const,
         allowed: false as const,
@@ -353,13 +365,14 @@ export type ManagedUser = {
   appRole: string;
   organization: string | null;
   sbu: string | null;
+  status: AccountStatus;
   banned: boolean;
 };
 
 export const listManagedUsers = createServerFn({ method: "GET" }).handler(async (): Promise<ManagedUser[]> => {
   const { request } = getRequestAuth();
   await requireSuperAdmin(request);
-  return getAuthDb(request)
+  const rows = await getAuthDb(request)
     .select({
       id: user.id,
       name: user.name,
@@ -367,10 +380,16 @@ export const listManagedUsers = createServerFn({ method: "GET" }).handler(async 
       appRole: user.appRole,
       organization: user.organization,
       sbu: user.sbu,
+      status: user.status,
       banned: user.banned,
     })
     .from(user)
     .orderBy(desc(user.createdAt));
+
+  return rows.map((r: any) => ({
+    ...r,
+    status: (r.status || "aktif") as AccountStatus,
+  }));
 });
 
 export const createManagedUser = createServerFn({ method: "POST" })
@@ -383,6 +402,7 @@ export const createManagedUser = createServerFn({ method: "POST" })
         appRole: z.enum(appRoles),
         sbu: z.string().trim().max(100).optional(),
         organization: z.string().trim().max(160).optional(),
+        status: z.enum(["aktif", "cuti", "resign"]).optional(),
       })
       .refine((data) => data.appRole !== "mitra" || Boolean(data.organization), {
         path: ["organization"],
@@ -401,6 +421,8 @@ export const createManagedUser = createServerFn({ method: "POST" })
     const { request, auth } = getRequestAuth();
     await requireSuperAdmin(request);
 
+    const userStatus = data.status || "aktif";
+
     const result = await auth.api.createUser({
       headers: request.headers,
       body: {
@@ -415,15 +437,19 @@ export const createManagedUser = createServerFn({ method: "POST" })
               ? "PT PLN Icon Plus"
               : data.organization || null,
           sbu: data.sbu || null,
+          status: userStatus,
         },
       },
     });
 
-    if (data.sbu) {
-      try {
-        const db = getAuthDb(request);
-        await db.update(user).set({ sbu: data.sbu }).where(eq(user.id, result.user.id));
-      } catch {}
+    try {
+      const db = getAuthDb(request);
+      await db.update(user).set({
+        ...(data.sbu ? { sbu: data.sbu } : {}),
+        status: userStatus,
+      }).where(eq(user.id, result.user.id));
+    } catch {
+      /* ignore */
     }
 
     return {
@@ -433,6 +459,7 @@ export const createManagedUser = createServerFn({ method: "POST" })
       appRole: data.appRole,
       sbu: data.sbu ?? "",
       organization: data.organization ?? "",
+      status: userStatus,
       banned: false,
     };
   });
@@ -445,6 +472,7 @@ export const updateManagedUser = createServerFn({ method: "POST" })
         appRole: z.enum(["petugas-sbu", "mitra", "petugas-mitra"]),
         sbu: z.string().trim().max(100).optional(),
         organization: z.string().trim().max(160).optional(),
+        status: z.enum(["aktif", "cuti", "resign"]).optional(),
       })
       .refine((data) => data.appRole !== "mitra" || Boolean(data.organization), {
         path: ["organization"],
@@ -473,11 +501,12 @@ export const updateManagedUser = createServerFn({ method: "POST" })
         appRole: data.appRole,
         organization: data.organization || null,
         sbu: data.sbu || null,
+        ...(data.status ? { status: data.status } : {}),
         updatedAt: new Date(),
       })
       .where(eq(user.id, data.id));
 
-    return { id: data.id, appRole: data.appRole, sbu: data.sbu };
+    return { id: data.id, appRole: data.appRole, sbu: data.sbu, status: data.status };
   });
 
 export const deleteManagedUser = createServerFn({ method: "POST" })

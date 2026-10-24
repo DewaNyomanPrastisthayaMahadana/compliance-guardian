@@ -89,7 +89,9 @@ function extractYearKey(dateRaw?: string, fallbackId?: string): string {
         const y = parsed.getFullYear();
         if (y >= 2000 && y <= 2100) return String(y);
       }
-    } catch {}
+    } catch {
+      /* ignore invalid date string */
+    }
   }
 
   if (fallbackId) {
@@ -317,6 +319,20 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
+const SBU_SAMPLING_STANDARDS: Record<string, number> = {
+  "01SBU": 327,
+  "02SBT": 328,
+  "03SBS": 328,
+  "04JKT": 327,
+  "05JBB": 328,
+  "06JTG": 328,
+  "07JBT": 326,
+  "08BNT": 326,
+  "09KAL": 326,
+  "10SIBT": 325,
+};
+const TOTAL_NATIONAL_SAMPLING = 3269;
+
 function Dashboard() {
   const router = useRouter();
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -342,6 +358,7 @@ function Dashboard() {
     const rawList = (isOverridden && custom.length > 0 ? custom : combined).filter(
       (v) => !deletedIds.has(v.id) && isRealViolation(v),
     );
+    void refreshTrigger;
     return cleanK3Violations(rawList);
   }, [loadedViolations, refreshTrigger]);
 
@@ -396,6 +413,7 @@ function Dashboard() {
     }
 
     // Sinkronisasi data skor dan kasus riil dari allViolations (murni pelanggaran teknis, bukan inspeksi rutin)
+    void refreshTrigger;
     return baseList.map((m) => {
       const mViolations = allViolations.filter(
         (v) => v.mitra.trim().toLowerCase() === m.nama.trim().toLowerCase() && isRealViolation(v),
@@ -433,21 +451,6 @@ function Dashboard() {
     (v) => v.status === "Pending Klarifikasi",
   ).length;
   const closedCount = kpiViolations.filter((v) => v.status === "Closed").length;
-
-  // Standar volume sampling QC per SBU (total ~328 sampling/inspeksi) dari rekapitulasi data nasional
-  const SBU_SAMPLING_STANDARDS: Record<string, number> = {
-    "01SBU": 327,
-    "02SBT": 328,
-    "03SBS": 328,
-    "04JKT": 327,
-    "05JBB": 328,
-    "06JTG": 328,
-    "07JBT": 326,
-    "08BNT": 326,
-    "09KAL": 326,
-    "10SIBT": 325,
-  };
-  const TOTAL_NATIONAL_SAMPLING = 3269;
 
   // Nilai Rata-rata Kepatuhan dihitung secara adil & proporsional dari rasio inspeksi patuh terhadap total sampling QC:
   // Kepatuhan = 100% - (Temuan Pelanggaran Riil / Total Sampling * 100%)
